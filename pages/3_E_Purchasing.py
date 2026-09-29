@@ -59,7 +59,7 @@ def catat_log(
   cursor.execute(
       """
         INSERT INTO tabel_log_notifikasi (waktu, kategori_paket, kode_paket, penerima, tujuan, media, status, keterangan)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     """,
       (
           waktu_sekarang,
@@ -418,7 +418,6 @@ with tab3:
 
       st.markdown("---")
 
-      # PENGAMANAN TRY-EXCEPT UNTUK MENCEGAH ERROR SAAT TRANSISI
       try:
         if not df_ep.empty:
           list_opsi = (
@@ -455,17 +454,59 @@ with tab3:
                   " BPJS)**"
               )
 
-            col_btn1, col_btn2 = st.columns(2)
+            # --- FITUR PRATINJAU PESAN (PREVIEW) ---
+            st.markdown("### 👁️ Pratinjau Pesan")
 
-            with col_btn1:
-              st.markdown("### 🏢 Aksi ke Pemenang")
-              body_email_ep = f"""Kepada Yth. Pimpinan {pemenang},
+            body_email_ep = f"""Kepada Yth. Pimpinan {pemenang},
 
-Sehubungan dengan penetapan pemenang untuk paket E-Purchasing {row_n.get('nama_paket', '')} (Kode: {kode_pilih}), sesuai dengan Peraturan Walikota Kendari dan MoU antara Pemerintah Kota Kendari, Kejaksaan Negeri Kendari dan BPJS, diharapkan agar Saudara segera menunaikan kewajiban Saudara terkait BPJS Ketenagakerjaan.
+Sehubungan dengan penetapan pemenang untuk paket E-Purchasing pada Pemerintah Kota Kendari {row_n.get('nama_paket', '')} (Kode: {kode_pilih}), sesuai dengan Surat Edaran Nomor 100.3.4.3/3290/Tahun 2025 Tentang Perlindungan Jaminan Sosial Berupa Jaminan Kecelakaan Kerja (JKK) dan Jaminan Kematian (JKM) Bagi Pekerja Sektor Jasa Konstruksi Di Lingkungan Pemerintah Kota Kendari, disampaikan agar Saudara segera menunaikan kewajiban Saudara terkait BPJS Ketenagakerjaan.
 
 Hormat kami,
 Dinas Tenaga Kerja dan Perindustrian Kota Kendari"""
 
+            wa_text_ep = f"Halo {pemenang},\n\nSehubungan dengan penetapan pemenang untuk paket E-Purchasing {row_n.get('nama_paket', '')} (Kode: {kode_pilih}),sesuai dengan Surat Edaran Nomor 100.3.4.3/3290/Tahun 2025 Tentang Perlindungan Jaminan Sosial Berupa Jaminan Kecelakaan Kerja (JKK) dan Jaminan Kematian (JKM) Bagi Pekerja Sektor Jasa Konstruksi Di Lingkungan Pemerintah Kota Kendari, disampaikan agar Saudara segera menunaikan kewajiban Saudara terkait BPJS Ketenagakerjaan.\n\nHormat kami,\nDinas Tenaga Kerja dan Perindustrian Kota Kendari"
+
+            body_pic_ep = f"""Kepada Yth. {nama_pic},
+
+Berikut laporan pemantauan kepatuhan BPJS untuk paket E-Purchasing:
+- Kode Paket: {kode_pilih}
+- Nama Paket: {row_n.get('nama_paket', '')}
+- Nama Pemenang: {pemenang}
+- Status BPJS: {status}
+
+Mohon untuk dapat dilakukan verifikasi lebih lanjut.
+
+Hormat kami,
+Dinas Tenaga Kerja dan Perindustrian Kota Kendari"""
+
+            col_prev1, col_prev2 = st.columns(2)
+            with col_prev1:
+              with st.expander("📄 Pratinjau Email Pemenang"):
+                st.text_area(
+                    "Teks Email:",
+                    value=body_email_ep,
+                    height=140,
+                    key="prev_ep_mail",
+                )
+              with st.expander("📱 Pratinjau WhatsApp Pemenang"):
+                st.text_area(
+                    "Teks WA:", value=wa_text_ep, height=140, key="prev_ep_wa"
+                )
+            with col_prev2:
+              with st.expander("📄 Pratinjau Laporan Email ke PIC"):
+                st.text_area(
+                    "Teks Laporan:",
+                    value=body_pic_ep,
+                    height=140,
+                    key="prev_ep_pic",
+                )
+
+            st.markdown("---")
+
+            col_btn1, col_btn2 = st.columns(2)
+
+            with col_btn1:
+              st.markdown("### 🏢 Aksi ke Pemenang")
               if st.button("📧 Kirim Email ke Pemenang", key="btn_ep_mail_pem"):
                 if not email_pemenang:
                   st.error("Alamat email pemenang kosong!")
@@ -518,11 +559,9 @@ Dinas Tenaga Kerja dan Perindustrian Kota Kendari"""
                     )
 
               if telp_pemenang:
-                wa_text_ep = f"Halo {pemenang},\n\nSehubungan dengan penetapan pemenang untuk paket E-Purchasing {row_n.get('nama_paket', '')} (Kode: {kode_pilih}), sesuai dengan Peraturan Walikota Kendari dan MoU antara Pemerintah Kota Kendari, Kejaksaan Negeri Kendari dan BPJS, diharapkan agar Saudara segera menunaikan kewajiban Saudara terkait BPJS Ketenagakerjaan.\n\nHormat kami,\nDinas Tenaga Kerja dan Perindustrian Kota Kendari"
                 url_wa = (
                     f"https://wa.me/{telp_pemenang}?text={urllib.parse.quote(wa_text_ep)}"
                 )
-
                 if st.button(
                     "📲 Kirim WhatsApp ke Pemenang", key="btn_ep_wa_pem"
                 ):
@@ -550,19 +589,6 @@ Dinas Tenaga Kerja dan Perindustrian Kota Kendari"""
 
             with col_btn2:
               st.markdown("### 🏥 Aksi ke PIC BPJS")
-              body_pic_ep = f"""Kepada Yth. {nama_pic},
-
-Berikut laporan pemantauan kepatuhan BPJS untuk paket E-Purchasing:
-- Kode Paket: {kode_pilih}
-- Nama Paket: {row_n.get('nama_paket', '')}
-- Nama Pemenang: {pemenang}
-- Status BPJS: {status}
-
-Mohon untuk dapat dilakukan verifikasi lebih lanjut.
-
-Hormat kami,
-Dinas Tenaga Kerja dan Perindustrian Kota Kendari"""
-
               if st.button(
                   "📧 Kirim Laporan Email ke PIC BPJS", key="btn_ep_mail_pic"
               ):
