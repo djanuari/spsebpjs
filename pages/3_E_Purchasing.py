@@ -447,6 +447,8 @@ with tab3:
             email_pemenang = row_n.get("email_pemenang", "") or ""
             telp_pemenang = row_n.get("telp_pemenang", "") or ""
             status = row_n.get("status_bpjs", "Belum")
+            nilai_kontrak_ep = row_n.get("nilai_kontrak", 0.0) or 0.0
+            alamat_pemenang_val = row_n.get("alamat_pemenang", "-") or "-"
 
             if "Wajib Kirim" in str(row_n.get("status_peringatan", "")):
               st.error(
@@ -454,17 +456,17 @@ with tab3:
                   " BPJS)**"
               )
 
-            # --- FITUR PRATINJAU PESAN (PREVIEW) ---
+            # --- PRATINJAU PESAN (LENGKAP DENGAN DETAIL KEUANGAN & KONTAK) ---
             st.markdown("### 👁️ Pratinjau Pesan")
 
             body_email_ep = f"""Kepada Yth. Pimpinan {pemenang},
 
-Sehubungan dengan penetapan pemenang untuk paket E-Purchasing pada Pemerintah Kota Kendari {row_n.get('nama_paket', '')} (Kode: {kode_pilih}), sesuai dengan Surat Edaran Nomor 100.3.4.3/3290/Tahun 2025 Tentang Perlindungan Jaminan Sosial Berupa Jaminan Kecelakaan Kerja (JKK) dan Jaminan Kematian (JKM) Bagi Pekerja Sektor Jasa Konstruksi Di Lingkungan Pemerintah Kota Kendari, disampaikan agar Saudara segera menunaikan kewajiban Saudara terkait BPJS Ketenagakerjaan.
+Sehubungan dengan penetapan pemenang untuk paket E-Purchasing {row_n.get('nama_paket', '')} (Kode: {kode_pilih}), sesuai dengan Peraturan Walikota Kendari dan MoU antara Pemerintah Kota Kendari, Kejaksaan Negeri Kendari dan BPJS, diharapkan agar Saudara segera menunaikan kewajiban Saudara terkait BPJS Ketenagakerjaan.
 
 Hormat kami,
 Dinas Tenaga Kerja dan Perindustrian Kota Kendari"""
 
-            wa_text_ep = f"Halo {pemenang},\n\nSehubungan dengan penetapan pemenang untuk paket E-Purchasing {row_n.get('nama_paket', '')} (Kode: {kode_pilih}),sesuai dengan Surat Edaran Nomor 100.3.4.3/3290/Tahun 2025 Tentang Perlindungan Jaminan Sosial Berupa Jaminan Kecelakaan Kerja (JKK) dan Jaminan Kematian (JKM) Bagi Pekerja Sektor Jasa Konstruksi Di Lingkungan Pemerintah Kota Kendari, disampaikan agar Saudara segera menunaikan kewajiban Saudara terkait BPJS Ketenagakerjaan.\n\nHormat kami,\nDinas Tenaga Kerja dan Perindustrian Kota Kendari"
+            wa_text_ep = f"Halo {pemenang},\n\nSehubungan dengan penetapan pemenang untuk paket E-Purchasing {row_n.get('nama_paket', '')} (Kode: {kode_pilih}), sesuai dengan Peraturan Walikota Kendari dan MoU antara Pemerintah Kota Kendari, Kejaksaan Negeri Kendari dan BPJS, diharapkan agar Saudara segera menunaikan kewajiban Saudara terkait BPJS Ketenagakerjaan.\n\nHormat kami,\nDinas Tenaga Kerja dan Perindustrian Kota Kendari"
 
             body_pic_ep = f"""Kepada Yth. {nama_pic},
 
@@ -472,6 +474,10 @@ Berikut laporan pemantauan kepatuhan BPJS untuk paket E-Purchasing:
 - Kode Paket: {kode_pilih}
 - Nama Paket: {row_n.get('nama_paket', '')}
 - Nama Pemenang: {pemenang}
+- Nilai Kontrak: Rp {nilai_kontrak_ep:,.2f}
+- Alamat Pemenang: {alamat_pemenang_val}
+- Email Pemenang: {email_pemenang if email_pemenang else '-'}
+- No. Telepon Pemenang: {telp_pemenang if telp_pemenang else '-'}
 - Status BPJS: {status}
 
 Mohon untuk dapat dilakukan verifikasi lebih lanjut.
@@ -497,7 +503,7 @@ Dinas Tenaga Kerja dan Perindustrian Kota Kendari"""
                 st.text_area(
                     "Teks Laporan:",
                     value=body_pic_ep,
-                    height=140,
+                    height=160,
                     key="prev_ep_pic",
                 )
 
