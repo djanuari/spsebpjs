@@ -428,7 +428,6 @@ with tab3:
 
       st.markdown("---")
 
-      # PENGAMANAN TRY-EXCEPT UNTUK MENCEGAH ERROR SAAT TRANSISI
       try:
         if not df_nontender.empty:
           list_opsi = (
@@ -467,17 +466,59 @@ with tab3:
                   " BPJS)**"
               )
 
-            col_btn1, col_btn2 = st.columns(2)
+            # --- FITUR PRATINJAU PESAN (PREVIEW) ---
+            st.markdown("### 👁️ Pratinjau Pesan")
 
-            with col_btn1:
-              st.markdown("### 🏢 Aksi ke Pemenang")
-              body_email_nt = f"""Kepada Yth. Pimpinan {pemenang},
+            body_email_nt = f"""Kepada Yth. Pimpinan {pemenang},
 
-Sehubungan dengan penetapan pemenang untuk paket Non-Tender {row_n.get('nama_nontender', '')} (Kode: {kode_pilih}), sesuai dengan Peraturan Walikota Kendari dan MoU antara Pemerintah Kota Kendari, Kejaksaan Negeri Kendari dan BPJS, diharapkan agar Saudara segera menunaikan kewajiban Saudara terkait BPJS Ketenagakerjaan.
+Sehubungan dengan penetapan pemenang pada SPSE Kota Kendari untuk paket Non-Tender {row_n.get('nama_nontender', '')} (Kode: {kode_pilih}), sesuai dengan Surat Edaran Nomor 100.3.4.3/3290/Tahun 2025 Tentang Perlindungan Jaminan Sosial Berupa Jaminan Kecelakaan Kerja (JKK) dan Jaminan Kematian (JKM) Bagi Pekerja Sektor Jasa Konstruksi Di Lingkungan Pemerintah Kota Kendari, disampaikan agar Saudara segera menunaikan kewajiban Saudara terkait BPJS Ketenagakerjaan.
 
 Hormat kami,
 Dinas Tenaga Kerja dan Perindustrian Kota Kendari"""
 
+            wa_text_nt = f"Halo {pemenang},\n\nSehubungan dengan penetapan pemenang untuk paket Non-Tender {row_n.get('nama_nontender', '')} (Kode: {kode_pilih}), sesuai dengan Surat Edaran Nomor 100.3.4.3/3290/Tahun 2025 Tentang Perlindungan Jaminan Sosial Berupa Jaminan Kecelakaan Kerja (JKK) dan Jaminan Kematian (JKM) Bagi Pekerja Sektor Jasa Konstruksi Di Lingkungan Pemerintah Kota Kendari, disampaikan agar Saudara segera menunaikan kewajiban Saudara terkait BPJS Ketenagakerjaan.\n\nHormat kami,\nDinas Tenaga Kerja dan Perindustrian Kota Kendari"
+
+            body_pic_nt = f"""Kepada Yth. {nama_pic},
+
+Berikut laporan pemantauan kepatuhan BPJS untuk paket Non-Tender:
+- Kode Paket: {kode_pilih}
+- Nama Paket: {row_n.get('nama_nontender', '')}
+- Nama Pemenang: {pemenang}
+- Status BPJS: {status}
+
+Mohon untuk dapat dilakukan verifikasi lebih lanjut.
+
+Hormat kami,
+Dinas Tenaga Kerja dan Perindustrian Kota Kendari"""
+
+            col_prev1, col_prev2 = st.columns(2)
+            with col_prev1:
+              with st.expander("📄 Pratinjau Email Pemenang"):
+                st.text_area(
+                    "Teks Email:",
+                    value=body_email_nt,
+                    height=140,
+                    key="prev_nt_mail",
+                )
+              with st.expander("📱 Pratinjau WhatsApp Pemenang"):
+                st.text_area(
+                    "Teks WA:", value=wa_text_nt, height=140, key="prev_nt_wa"
+                )
+            with col_prev2:
+              with st.expander("📄 Pratinjau Laporan Email ke PIC"):
+                st.text_area(
+                    "Teks Laporan:",
+                    value=body_pic_nt,
+                    height=140,
+                    key="prev_nt_pic",
+                )
+
+            st.markdown("---")
+
+            col_btn1, col_btn2 = st.columns(2)
+
+            with col_btn1:
+              st.markdown("### 🏢 Aksi ke Pemenang")
               if st.button("📧 Kirim Email ke Pemenang", key="btn_nt_mail_pem"):
                 if not email_pemenang:
                   st.error("Alamat email pemenang kosong!")
@@ -530,11 +571,9 @@ Dinas Tenaga Kerja dan Perindustrian Kota Kendari"""
                     )
 
               if telp_pemenang:
-                wa_text_nt = f"Halo {pemenang},\n\nSehubungan dengan penetapan pemenang untuk paket Non-Tender {row_n.get('nama_nontender', '')} (Kode: {kode_pilih}), sesuai dengan Peraturan Walikota Kendari dan MoU antara Pemerintah Kota Kendari, Kejaksaan Negeri Kendari dan BPJS, diharapkan agar Saudara segera menunaikan kewajiban Saudara terkait BPJS Ketenagakerjaan.\n\nHormat kami,\nDinas Tenaga Kerja dan Perindustrian Kota Kendari"
                 url_wa = (
                     f"https://wa.me/{telp_pemenang}?text={urllib.parse.quote(wa_text_nt)}"
                 )
-
                 if st.button(
                     "📲 Kirim WhatsApp ke Pemenang", key="btn_nt_wa_pem"
                 ):
@@ -562,19 +601,6 @@ Dinas Tenaga Kerja dan Perindustrian Kota Kendari"""
 
             with col_btn2:
               st.markdown("### 🏥 Aksi ke PIC BPJS")
-              body_pic_nt = f"""Kepada Yth. {nama_pic},
-
-Berikut laporan pemantauan kepatuhan BPJS untuk paket Non-Tender:
-- Kode Paket: {kode_pilih}
-- Nama Paket: {row_n.get('nama_nontender', '')}
-- Nama Pemenang: {pemenang}
-- Status BPJS: {status}
-
-Mohon untuk dapat dilakukan verifikasi lebih lanjut.
-
-Hormat kami,
-Dinas Tenaga Kerja dan Perindustrian Kota Kendari"""
-
               if st.button(
                   "📧 Kirim Laporan Email ke PIC BPJS", key="btn_nt_mail_pic"
               ):
