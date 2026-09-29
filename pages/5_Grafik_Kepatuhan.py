@@ -47,11 +47,12 @@ col3.metric("🛒 Total Paket E-Purchasing", f"{total_ep} Paket")
 
 st.markdown("---")
 
-# Bagian Grafik Menggunakan Plotly dengan Key Unik & Aman dari Glitch
-c_g1, c_g2 = st.columns(2)
+# BAGIAN 1: GRAFIK PIE STATUS KEPATUHAN BPJS (Tender, Non-Tender, & E-Purchasing)
+st.subheader("📈 Distribusi Status Kepatuhan BPJS per Kategori Paket")
+c_g1, c_g2, c_g3 = st.columns(3)
 
 with c_g1:
-  st.subheader("📈 Status Kepatuhan BPJS (Tender)")
+  st.markdown("**Tender / Seleksi**")
   if not df_tender.empty and "status_bpjs" in df_tender.columns:
     count_tender = df_tender["status_bpjs"].value_counts().reset_index()
     count_tender.columns = ["Status", "Jumlah"]
@@ -59,17 +60,18 @@ with c_g1:
         count_tender,
         names="Status",
         values="Jumlah",
-        title="Distribusi BPJS Tender",
         hole=0.4,
         color_discrete_sequence=["#FF4B4B", "#00CC96"],
     )
-    # Argumen use_container_width dan key unik mencegah error transisi
+    fig_tender.update_layout(
+        margin=dict(t=10, b=10, l=10, r=10), showlegend=True
+    )
     st.plotly_chart(fig_tender, use_container_width=True, key="grafik_pie_tender")
   else:
-    st.info("Belum ada data status BPJS untuk Tender.")
+    st.info("Belum ada data.")
 
 with c_g2:
-  st.subheader("📈 Status Kepatuhan BPJS (Non-Tender)")
+  st.markdown("**Non-Tender**")
   if not df_nontender.empty and "status_bpjs" in df_nontender.columns:
     count_nt = df_nontender["status_bpjs"].value_counts().reset_index()
     count_nt.columns = ["Status", "Jumlah"]
@@ -77,21 +79,45 @@ with c_g2:
         count_nt,
         names="Status",
         values="Jumlah",
-        title="Distribusi BPJS Non-Tender",
         hole=0.4,
         color_discrete_sequence=["#FF4B4B", "#00CC96"],
     )
-    st.plotly_chart(fig_nt, use_container_width=True, key="grafik_pie_nontender")
+    fig_nt.update_layout(
+        margin=dict(t=10, b=10, l=10, r=10), showlegend=True
+    )
+    st.plotly_chart(
+        fig_nt, use_container_width=True, key="grafik_pie_nontender"
+    )
   else:
-    st.info("Belum ada data status BPJS untuk Non-Tender.")
+    st.info("Belum ada data.")
+
+with c_g3:
+  st.markdown("**E-Purchasing / Mini Kompetisi**")
+  if not df_ep.empty and "status_bpjs" in df_ep.columns:
+    count_ep = df_ep["status_bpjs"].value_counts().reset_index()
+    count_ep.columns = ["Status", "Jumlah"]
+    fig_ep = px.pie(
+        count_ep,
+        names="Status",
+        values="Jumlah",
+        hole=0.4,
+        color_discrete_sequence=["#FF4B4B", "#00CC96"],
+    )
+    fig_ep.update_layout(
+        margin=dict(t=10, b=10, l=10, r=10), showlegend=True
+    )
+    st.plotly_chart(
+        fig_ep, use_container_width=True, key="grafik_pie_epurchasing"
+    )
+  else:
+    st.info("Belum ada data.")
 
 st.markdown("---")
 
-# Grafik Batang Berdasarkan Jenis Pengadaan
+# BAGIAN 2: GRAFIK BATANG BERDASARKAN JENIS PENGADAAN
 st.subheader("📊 Perbandingan Volume Berdasarkan Jenis Pengadaan")
 
 try:
-  # Gabungkan data untuk analisis jenis pengadaan jika kolomnya tersedia
   list_gabungan = []
   if not df_tender.empty and "jenis_pengadaan" in df_tender.columns:
     t_sub = df_tender[["jenis_pengadaan"]].copy()
