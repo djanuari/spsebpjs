@@ -1,4 +1,3 @@
-import io
 import sqlite3
 import pandas as pd
 import streamlit as st
@@ -12,7 +11,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# SISTEM LOGIN SEDERHANA (Opsional, sesuaikan jika sudah ada)
+# SISTEM LOGIN SEDERHANA
 # ---------------------------------------------------------
 if "logged_in" not in st.session_state:
   st.session_state["logged_in"] = False
@@ -26,7 +25,6 @@ if not st.session_state["logged_in"]:
     submit_login = st.form_submit_button("Masuk", type="primary")
 
     if submit_login:
-      # Ubah password atau kredensial sesuai kebutuhan Anda
       if username == "admin" and password == "admin123":
         st.session_state["logged_in"] = True
         st.success("Login berhasil! Memuat aplikasi...")
@@ -52,17 +50,23 @@ conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 # Informasi Ringkas / Statistik Singkat
 col_s1, col_s2, col_s3 = st.columns(3)
 try:
-  df_t_count = pd.read_sql_query("SELECT COUNT(*) as total FROM tabel_tender", conn).iloc[0]["total"]
+  df_t_count = pd.read_sql_query(
+      "SELECT COUNT(*) as total FROM tabel_tender", conn
+  ).iloc[0]["total"]
 except:
   df_t_count = 0
 
 try:
-  df_nt_count = pd.read_sql_query("SELECT COUNT(*) as total FROM tabel_nontender", conn).iloc[0]["total"]
+  df_nt_count = pd.read_sql_query(
+      "SELECT COUNT(*) as total FROM tabel_nontender", conn
+  ).iloc[0]["total"]
 except:
   df_nt_count = 0
 
 try:
-  df_ep_count = pd.read_sql_query("SELECT COUNT(*) as total FROM tabel_epurchasing", conn).iloc[0]["total"]
+  df_ep_count = pd.read_sql_query(
+      "SELECT COUNT(*) as total FROM tabel_epurchasing", conn
+  ).iloc[0]["total"]
 except:
   df_ep_count = 0
 
@@ -81,8 +85,12 @@ st.markdown(
     " terbaru langsung dari server SPSE / API Eksternal."
 )
 
-if st.button("🔄 Tarik Data Terbaru via API SPSE", type="primary", key="btn_tarik_api"):
-  with st.spinner("Sedang menghubungkan ke server API SPSE dan memproses data..."):
+if st.button(
+    "🔄 Tarik Data Terbaru via API SPSE", type="primary", key="btn_tarik_api"
+):
+  with st.spinner(
+      "Sedang menghubungkan ke server API SPSE dan memproses data..."
+  ):
     # Memanggil fungsi dari api_connector.py
     jumlah_data = sinkronisasi_database_spse()
 
@@ -91,22 +99,23 @@ if st.button("🔄 Tarik Data Terbaru via API SPSE", type="primary", key="btn_ta
           f"✅ Berhasil! Sinkronisasi selesai. Sebanyak **{jumlah_data} data paket**"
           " berhasil diperbarui ke database lokal."
       )
-      
-      # Simpan status sukses di session_state agar tombol unduh tetap tampil setelah sinkronisasi
+      # Simpan status sukses di session_state agar tombol unduh tetap tampil
       st.session_state["sync_success"] = True
     else:
-      st.warning("⚠️ Sinkronisasi selesai, namun tidak ada data baru yang diproses.")
+      st.warning(
+          "⚠️ Sinkronisasi selesai, namun tidak ada data baru yang diproses."
+      )
       st.session_state["sync_success"] = False
 
 # =========================================================
-# KONTROL TOMBOL UNDUH INSTAN (MUNCUL SETELAH TARIK DATA BERHASIL)
+# KONTROL TOMBOL UNDUH INSTAN (FORMAT CSV YANG AMAN & TANPA ERROR)
 # =========================================================
 if st.session_state.get("sync_success", False):
   st.markdown("---")
   st.info("📥 Arsip data hasil tarikan API terbaru siap diunduh.")
 
   try:
-    # Mengambil gabungan atau data terbaru dari database untuk di-export ke Excel
+    # Mengambil gabungan data dari database untuk di-export
     query_gabungan = """
         SELECT 'Tender' as kategori, kode_tender as kode_paket, nama_paket, jenis_pengadaan, satuan_kerja, nilai_pagu as nilai, status_bpjs FROM tabel_tender
         UNION ALL
@@ -115,23 +124,20 @@ if st.session_state.get("sync_success", False):
     df_hasil_tarikan = pd.read_sql_query(query_gabungan, conn)
 
     if not df_hasil_tarikan.empty:
-      # Buat file excel virtual di memori menggunakan io.BytesIO
-      output_excel = io.BytesIO()
-      with pd.ExcelWriter(output_excel, engine="xlsxwriter") as writer:
-        df_hasil_tarikan.to_excel(
-            writer, sheet_name="Hasil Sinkronisasi API", index=False
-        )
-      excel_bytes = output_excel.getvalue()
+      # Ubah DataFrame ke format CSV (dapat dibuka langsung di Excel)
+      csv_data = df_hasil_tarikan.to_csv(index=False).encode("utf-8")
 
       # Tombol unduh instan
       st.download_button(
-          label="📥 Unduh Hasil Tarikan API ke Format Excel (.xlsx)",
-          data=excel_bytes,
-          file_name="Hasil_Tarikan_Data_SPSE.xlsx",
-          mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          label="📥 Unduh Hasil Tarikan API ke Format CSV (.csv)",
+          data=csv_data,
+          file_name="Hasil_Tarikan_Data_SPSE.csv",
+          mime="text/csv",
           type="secondary",
-          key="btn_download_excel_api",
+          key="btn_download_csv_api",
       )
+    else:
+      st.info("Tidak ada data yang tersedia untuk diunduh.")
   except Exception as e:
     st.error(f"Gagal menyiapkan file unduhan: {e}")
 
