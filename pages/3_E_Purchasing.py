@@ -18,6 +18,7 @@ st.set_page_config(
 conn = sqlite3.connect("database_spse.db", check_same_thread=False)
 cursor = conn.cursor()
 
+# 1. Pastikan tabel utama tercipta lengkap
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS tabel_epurchasing (
     kode_paket TEXT PRIMARY KEY,
@@ -51,12 +52,32 @@ CREATE TABLE IF NOT EXISTS tabel_log_notifikasi (
 """)
 conn.commit()
 
+# 2. Pengaman otomatis (Auto-add kolom jika tabel sudah terlanjur ada tapi kurang lengkap)
+kolom_yang_dibutuhkan = [
+    ("kode_rup", "TEXT"),
+    ("pagu_paket", "REAL"),
+    ("hps_paket", "REAL"),
+    ("jenis_pengadaan", "TEXT"),
+    ("nilai_kontrak", "REAL"),
+    ("alamat_pemenang", "TEXT"),
+    ("email_pemenang", "TEXT"),
+    ("telp_pemenang", "TEXT"),
+    ("tanggal_penetapan", "TEXT"),
+    ("status_bpjs", "TEXT")
+]
+
+for col_name, col_type in kolom_yang_dibutuhkan:
+  try:
+    cursor.execute(f"ALTER TABLE tabel_epurchasing ADD COLUMN {col_name} {col_type}")
+    conn.commit()
+  except sqlite3.OperationalError:
+    pass # Kolom sudah ada, abaikan error
+
 
 def catat_log(
     kategori, kode_paket, penerima, tujuan, media, status, keterangan
 ):
   waktu_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-  # Diperbaiki: Jumlah placeholder (?) disesuaikan tepat 8 buah sesuai kolom tabel
   cursor.execute(
       """
         INSERT INTO tabel_log_notifikasi (waktu, kategori_paket, kode_paket, penerima, tujuan, media, status, keterangan)
@@ -75,14 +96,6 @@ def catat_log(
   )
   conn.commit()
 
-
-try:
-  cursor.execute(
-      "ALTER TABLE tabel_epurchasing ADD COLUMN tanggal_penetapan TEXT"
-  )
-  conn.commit()
-except sqlite3.OperationalError:
-  pass
 
 st.title("🛒 3. Data E-Purchasing / Mini Kompetisi & Kepatuhan BPJS")
 st.markdown("---")
@@ -394,7 +407,7 @@ with tab3:
     )
 
     with st.expander(
-        "⚙️ Konfigurasi Pengirim & Kirim Pesan Notifikasi", expanded=True
+        "⚙️️ Konfigurasi Pengirim & Kirim Pesan Notifikasi", expanded=True
     ):
       col_smtp1, col_smtp2 = st.columns(2)
       smtp_email = col_smtp1.text_input(
@@ -457,7 +470,7 @@ with tab3:
                   " BPJS)**"
               )
 
-            st.markdown("### 👁️ Pratinjau Pesan")
+            st.markdown("### 👁️️ Pratinjau Pesan")
 
             body_email_ep = f"""Kepada Yth. Pimpinan {pemenang},
 
