@@ -56,10 +56,11 @@ def catat_log(
     kategori, kode_paket, penerima, tujuan, media, status, keterangan
 ):
   waktu_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+  # Diperbaiki: Jumlah placeholder (?) disesuaikan tepat 8 buah sesuai kolom tabel
   cursor.execute(
       """
         INSERT INTO tabel_log_notifikasi (waktu, kategori_paket, kode_paket, penerima, tujuan, media, status, keterangan)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """,
       (
           waktu_sekarang,
@@ -456,7 +457,6 @@ with tab3:
                   " BPJS)**"
               )
 
-            # --- PRATINJAU PESAN (LENGKAP DENGAN DETAIL KEUANGAN & KONTAK) ---
             st.markdown("### 👁️ Pratinjau Pesan")
 
             body_email_ep = f"""Kepada Yth. Pimpinan {pemenang},
