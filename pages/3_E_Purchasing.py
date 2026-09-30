@@ -18,7 +18,7 @@ st.set_page_config(
 conn = sqlite3.connect("database_spse.db", check_same_thread=False)
 cursor = conn.cursor()
 
-# 1. Pastikan tabel utama tercipta lengkap
+# Buat tabel dengan struktur lengkap yang aman
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS tabel_epurchasing (
     kode_paket TEXT PRIMARY KEY,
@@ -52,49 +52,31 @@ CREATE TABLE IF NOT EXISTS tabel_log_notifikasi (
 """)
 conn.commit()
 
-# 2. Pengaman otomatis (Auto-add kolom jika tabel sudah terlanjur ada tapi kurang lengkap)
-kolom_yang_dibutuhkan = [
-    ("kode_rup", "TEXT"),
-    ("pagu_paket", "REAL"),
-    ("hps_paket", "REAL"),
-    ("jenis_pengadaan", "TEXT"),
-    ("nilai_kontrak", "REAL"),
-    ("alamat_pemenang", "TEXT"),
-    ("email_pemenang", "TEXT"),
-    ("telp_pemenang", "TEXT"),
-    ("tanggal_penetapan", "TEXT"),
-    ("status_bpjs", "TEXT")
-]
-
-for col_name, col_type in kolom_yang_dibutuhkan:
-  try:
-    cursor.execute(f"ALTER TABLE tabel_epurchasing ADD COLUMN {col_name} {col_type}")
-    conn.commit()
-  except sqlite3.OperationalError:
-    pass # Kolom sudah ada, abaikan error
-
 
 def catat_log(
     kategori, kode_paket, penerima, tujuan, media, status, keterangan
 ):
   waktu_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-  cursor.execute(
-      """
-        INSERT INTO tabel_log_notifikasi (waktu, kategori_paket, kode_paket, penerima, tujuan, media, status, keterangan)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """,
-      (
-          waktu_sekarang,
-          kategori,
-          kode_paket,
-          penerima,
-          tujuan,
-          media,
-          status,
-          keterangan,
-      ),
-  )
-  conn.commit()
+  try:
+    cursor.execute(
+        """
+            INSERT INTO tabel_log_notifikasi (waktu, kategori_paket, kode_paket, penerima, tujuan, media, status, keterangan)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            waktu_sekarang,
+            kategori,
+            kode_paket,
+            penerima,
+            tujuan,
+            media,
+            status,
+            keterangan,
+        ),
+    )
+    conn.commit()
+  except Exception:
+    pass
 
 
 st.title("🛒 3. Data E-Purchasing / Mini Kompetisi & Kepatuhan BPJS")
@@ -194,13 +176,18 @@ with tab1:
 # TAB 2: EDIT DATA
 with tab2:
   st.subheader("Edit Data Berdasarkan Kode Paket")
-  df_list = pd.read_sql_query(
-      "SELECT kode_paket, nama_paket FROM tabel_epurchasing", conn
-  )
+  try:
+    df_list = pd.read_sql_query(
+        "SELECT kode_paket, nama_paket FROM tabel_epurchasing", conn
+    )
+  except Exception:
+    df_list = pd.DataFrame()
 
   if not df_list.empty:
     df_list["label_edit"] = (
-        df_list["kode_paket"] + " - " + df_list["nama_paket"].fillna("")
+        df_list["kode_paket"].astype(str)
+        + " - "
+        + df_list["nama_paket"].fillna("")
     )
     pilihan_edit = st.selectbox(
         "Pilih Kode Paket yang ingin diedit:", df_list["label_edit"].tolist()
@@ -219,25 +206,25 @@ with tab2:
 
         with st.form("form_edit_epurchasing"):
           u_rup = st.text_input(
-              "Kode RUP", value=str(r["kode_rup"] or "")
+              "Kode RUP", value=str(r.get("kode_rup", "") or "")
           )
           u_nama = st.text_input(
-              "Nama Paket", value=str(r["nama_paket"] or "")
+              "Nama Paket", value=str(r.get("nama_paket", "") or "")
           )
 
           uc1, uc2 = st.columns(2)
           u_pagu = uc1.number_input(
               "Pagu Paket (Rp)",
-              value=float(r["pagu_paket"] or 0.0),
+              value=float(r.get("pagu_paket", 0.0) or 0.0),
               format="%.2f",
           )
           u_hps = uc2.number_input(
               "HPS Paket (Rp)",
-              value=float(r["hps_paket"] or 0.0),
+              value=float(r.get("hps_paket", 0.0) or 0.0),
               format="%.2f",
           )
 
-          curr_jp = r["jenis_pengadaan"]
+          curr_jp = r.get("jenis_pengadaan", "Pengadaan Barang")
           jp_idx = (
               jenis_pengadaan_opsi.index(curr_jp)
               if curr_jp in jenis_pengadaan_opsi
@@ -247,18 +234,18 @@ with tab2:
               "Jenis Pengadaan", jenis_pengadaan_opsi, index=jp_idx
           )
           u_pemenang = st.text_input(
-              "Nama Pemenang", value=str(r["nama_pemenang"] or "")
+              "Nama Pemenang", value=str(r.get("nama_pemenang", "") or "")
           )
 
           uc3, uc4 = st.columns(2)
           u_nilai = uc3.number_input(
               "Nilai Kontrak (Rp)",
-              value=float(r["nilai_kontrak"] or 0.0),
+              value=float(r.get("nilai_kontrak", 0.0) or 0.0),
               format="%.2f",
           )
           stat_idx = (
-              ["Belum", "Sudah"].index(r["status_bpjs"])
-              if r["status_bpjs"] in ["Belum", "Sudah"]
+              ["Belum", "Sudah"].index(r.get("status_bpjs", "Belum"))
+              if r.get("status_bpjs") in ["Belum", "Sudah"]
               else 0
           )
           u_bpjs = st.selectbox(
@@ -266,15 +253,16 @@ with tab2:
           )
 
           u_alamat = st.text_area(
-              "Alamat Pemenang", value=str(r["alamat_pemenang"] or "")
+              "Alamat Pemenang", value=str(r.get("alamat_pemenang", "") or "")
           )
 
           uc5, uc6 = st.columns(2)
           u_email = uc5.text_input(
-              "Email Pemenang", value=str(r["email_pemenang"] or "")
+              "Email Pemenang", value=str(r.get("email_pemenang", "") or "")
           )
           u_telp = uc6.text_input(
-              "Nomor Telepon Pemenang", value=str(r["telp_pemenang"] or "")
+              "Nomor Telepon Pemenang",
+              value=str(r.get("telp_pemenang", "") or ""),
           )
 
           submit_update = st.form_submit_button(
@@ -310,19 +298,19 @@ with tab2:
                 " diperbarui!"
             )
   else:
-    st.info("Belum ada data E-Purchasing tersimpan untuk diedit.")
+    st.info(
+        "Belum ada data E-Purchasing tersimpan. Silakan input melalui tab"
+        " 'Tambah Data'."
+    )
 
 # TAB 3: LAPORAN & SMART ALERT + LOG PENGIRIMAN
 with tab3:
   st.subheader("Rekapitulasi Paket E-Purchasing & Peringatan Otomatis")
 
-  query_ep = """
-        SELECT kode_rup, kode_paket, nama_paket, pagu_paket, hps_paket, jenis_pengadaan, 
-               nama_pemenang, nilai_kontrak, tanggal_penetapan, alamat_pemenang, email_pemenang, 
-               telp_pemenang, status_bpjs 
-        FROM tabel_epurchasing
-    """
-  df_ep = pd.read_sql_query(query_ep, conn)
+  try:
+    df_ep = pd.read_sql_query("SELECT * FROM tabel_epurchasing", conn)
+  except Exception:
+    df_ep = pd.DataFrame()
 
   if not df_ep.empty:
     hari_ini = datetime.now().date()
@@ -330,9 +318,12 @@ with tab3:
 
     def cek_status_notif_ep(row):
       try:
-        tgl_str = str(row["tanggal_penetapan"]).split()[0]
+        tgl_val = row.get("tanggal_penetapan")
+        if not tgl_val:
+          return "⏳ Menunggu Jadwal"
+        tgl_str = str(tgl_val).split()[0]
         tgl_penetapan = datetime.strptime(tgl_str, "%Y-%m-%d").date()
-        status = str(row["status_bpjs"]).capitalize()
+        status = str(row.get("status_bpjs", "Belum")).capitalize()
 
         if tgl_penetapan <= hari_ini and status == "Belum":
           return "🚨 Wajib Kirim Notifikasi (Jatuh Tempo)"
@@ -375,28 +366,6 @@ with tab3:
 
     st.dataframe(
         df_ep,
-        column_config={
-            "kode_rup": "Kode RUP",
-            "kode_paket": "Kode Paket",
-            "nama_paket": "Nama Paket",
-            "pagu_paket": st.column_config.NumberColumn(
-                "Pagu Paket", format="Rp %,d"
-            ),
-            "hps_paket": st.column_config.NumberColumn(
-                "HPS Paket", format="Rp %,d"
-            ),
-            "jenis_pengadaan": "Jenis Pengadaan",
-            "nama_pemenang": "Nama Pemenang",
-            "nilai_kontrak": st.column_config.NumberColumn(
-                "Nilai Kontrak", format="Rp %,d"
-            ),
-            "tanggal_penetapan": "Tgl Penetapan",
-            "alamat_pemenang": "Alamat Pemenang",
-            "email_pemenang": "Email Pemenang",
-            "telp_pemenang": "No. Telepon",
-            "status_bpjs": "Status BPJS",
-            "status_peringatan": "Status Peringatan Sistem",
-        },
         use_container_width=True,
         hide_index=True,
     )
@@ -407,7 +376,7 @@ with tab3:
     )
 
     with st.expander(
-        "⚙️️ Konfigurasi Pengirim & Kirim Pesan Notifikasi", expanded=True
+        "⚙️ Konfigurasi Pengirim & Kirim Pesan Notifikasi", expanded=True
     ):
       col_smtp1, col_smtp2 = st.columns(2)
       smtp_email = col_smtp1.text_input(
@@ -470,7 +439,7 @@ with tab3:
                   " BPJS)**"
               )
 
-            st.markdown("### 👁️️ Pratinjau Pesan")
+            st.markdown("### 👁️ Pratinjau Pesan")
 
             body_email_ep = f"""Kepada Yth. Pimpinan {pemenang},
 
@@ -678,4 +647,7 @@ Dinas Tenaga Kerja dan Perindustrian Kota Kendari"""
         except Exception:
           st.info("Memuat ulang data notifikasi...")
   else:
-    st.info("Belum ada data E-Purchasing yang tersimpan.")
+    st.info(
+        "Belum ada data E-Purchasing yang tersimpan. Silakan tambahkan data baru"
+        " melalui Tab 1."
+    )
