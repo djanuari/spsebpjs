@@ -108,23 +108,23 @@ if st.button(
       st.session_state["sync_success"] = False
 
 # =========================================================
-# KONTROL TOMBOL UNDUH INSTAN (FORMAT CSV YANG AMAN & TANPA ERROR)
+# KONTROL TOMBOL UNDUH INSTAN (FORMAT CSV - BERSIH TANPA STATUS BPJS)
 # =========================================================
 if st.session_state.get("sync_success", False):
   st.markdown("---")
   st.info("📥 Arsip data hasil tarikan API terbaru siap diunduh.")
 
   try:
-    # Mengambil gabungan data dari database untuk di-export
+    # Mengambil gabungan data murni dari database tanpa menyertakan status_bpjs
     query_gabungan = """
-        SELECT 'Tender' as kategori, kode_tender as kode_paket, nama_paket, jenis_pengadaan, satuan_kerja, nilai_pagu as nilai, status_bpjs FROM tabel_tender
+        SELECT 'Tender' as kategori, kode_tender as kode_paket, nama_paket, jenis_pengadaan, satuan_kerja, nilai_pagu as nilai FROM tabel_tender
         UNION ALL
-        SELECT 'Non-Tender' as kategori, kode_nontender as kode_paket, nama_nontender as nama_paket, jenis_pengadaan, satuan_kerja, nilai_hps as nilai, status_bpjs FROM tabel_nontender
+        SELECT 'Non-Tender' as kategori, kode_nontender as kode_paket, nama_nontender as nama_paket, jenis_pengadaan, satuan_kerja, nilai_hps as nilai FROM tabel_nontender
     """
     df_hasil_tarikan = pd.read_sql_query(query_gabungan, conn)
 
     if not df_hasil_tarikan.empty:
-      # Ubah DataFrame ke format CSV (dapat dibuka langsung di Excel)
+      # Ubah DataFrame ke format CSV murni
       csv_data = df_hasil_tarikan.to_csv(index=False).encode("utf-8")
 
       # Tombol unduh instan
