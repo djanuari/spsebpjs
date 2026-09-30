@@ -43,15 +43,17 @@ if st.button("Tarik Data Terbaru via API SPSE", type="primary"):
   ):
     try:
       total_sinkron = sinkronisasi_database_spse()
-      if total_sinkron > 0:
+      
+      # Pengaman: Pastikan total_sinkron tidak None sebelum dibandingkan dengan angka
+      if total_sinkron is not None and total_sinkron > 0:
         st.success(
             f"✅ Berhasil! Sinkronisasi selesai. Sebanyak {total_sinkron} data"
             " paket berhasil diperbarui ke database lokal."
         )
       else:
         st.warning(
-            "⚠️ Koneksi berhasil, tetapi tidak ada data baru yang masuk atau"
-            " periksa kembali format respons API."
+            "⚠️ Koneksi berhasil, tetapi modul sinkronisasi belum mengembalikan"
+            " jumlah data (atau fungsi masih berupa placeholder kosong)."
         )
     except Exception as e:
       st.error(f"Gagal melakukan sinkronisasi: {e}")
