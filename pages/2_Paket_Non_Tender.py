@@ -52,6 +52,30 @@ CREATE TABLE IF NOT EXISTS tabel_log_notifikasi (
 """)
 conn.commit()
 
+# Pengaman otomatis: Tambahkan kolom jika tabel sudah ada tapi kurang lengkap
+kolom_tambahan = [
+    ("kode_rup", "TEXT"),
+    ("satuan_kerja", "TEXT"),
+    ("nilai_pagu", "REAL"),
+    ("nilai_hps", "REAL"),
+    ("jenis_pengadaan", "TEXT"),
+    ("nama_pemenang", "TEXT"),
+    ("nilai_kontrak", "REAL"),
+    ("alamat_pemenang", "TEXT"),
+    ("email_pemenang", "TEXT"),
+    ("telp_pemenang", "TEXT"),
+    ("tanggal_penetapan", "TEXT"),
+    ("status_bpjs", "TEXT"),
+]
+for col_name, col_type in kolom_tambahan:
+  try:
+    cursor.execute(
+        f"ALTER TABLE tabel_nontender ADD COLUMN {col_name} {col_type}"
+    )
+    conn.commit()
+  except sqlite3.OperationalError:
+    pass
+
 
 def catat_log(
     kategori, kode_paket, penerima, tujuan, media, status, keterangan
@@ -170,13 +194,16 @@ with tab1:
 # TAB 2: EDIT DATA
 with tab2:
   st.subheader("Edit Data Berdasarkan Kode Non-Tender")
-  df_list = pd.read_sql_query(
-      "SELECT kode_nontender, nama_nontender FROM tabel_nontender", conn
-  )
+  try:
+    df_list = pd.read_sql_query(
+        "SELECT kode_nontender, nama_nontender FROM tabel_nontender", conn
+    )
+  except Exception:
+    df_list = pd.DataFrame()
 
   if not df_list.empty:
     df_list["label_edit"] = (
-        df_list["kode_nontender"]
+        df_list["kode_nontender"].astype(str)
         + " - "
         + df_list["nama_nontender"].fillna("")
     )
@@ -195,31 +222,30 @@ with tab2:
         r = df_row.iloc[0]
         st.info(f"Sedang mengedit Kode Non-Tender: **{kode_pilih}**")
 
-        # Form dibuat dinamis berdasarkan kode_pilih agar isian ter-refresh otomatis
         with st.form(f"form_edit_nontender_{kode_pilih}"):
           u_rup = st.text_input(
-              "Kode RUP", value=str(r["kode_rup"] or "")
+              "Kode RUP", value=str(r.get("kode_rup", "") or "")
           )
           u_nama = st.text_input(
-              "Nama Paket", value=str(r["nama_nontender"] or "")
+              "Nama Paket", value=str(r.get("nama_nontender", "") or "")
           )
           u_satker = st.text_input(
-              "Satuan Kerja", value=str(r["satuan_kerja"] or "")
+              "Satuan Kerja", value=str(r.get("satuan_kerja", "") or "")
           )
 
           uc1, uc2 = st.columns(2)
           u_pagu = uc1.number_input(
               "Nilai Pagu (Rp)",
-              value=float(r["nilai_pagu"] or 0.0),
+              value=float(r.get("nilai_pagu", 0.0) or 0.0),
               format="%.2f",
           )
           u_hps = uc2.number_input(
               "Nilai HPS (Rp)",
-              value=float(r["nilai_hps"] or 0.0),
+              value=float(r.get("nilai_hps", 0.0) or 0.0),
               format="%.2f",
           )
 
-          curr_jp = r["jenis_pengadaan"]
+          curr_jp = r.get("jenis_pengadaan", "Pengadaan Barang")
           jp_idx = (
               jenis_pengadaan_opsi.index(curr_jp)
               if curr_jp in jenis_pengadaan_opsi
@@ -229,18 +255,18 @@ with tab2:
               "Jenis Pengadaan", jenis_pengadaan_opsi, index=jp_idx
           )
           u_pemenang = st.text_input(
-              "Nama Pemenang", value=str(r["nama_pemenang"] or "")
+              "Nama Pemenang", value=str(r.get("nama_pemenang", "") or "")
           )
 
           uc3, uc4 = st.columns(2)
           u_nilai = uc3.number_input(
               "Nilai Kontrak (Rp)",
-              value=float(r["nilai_kontrak"] or 0.0),
+              value=float(r.get("nilai_kontrak", 0.0) or 0.0),
               format="%.2f",
           )
           stat_idx = (
-              ["Belum", "Sudah"].index(r["status_bpjs"])
-              if r["status_bpjs"] in ["Belum", "Sudah"]
+              ["Belum", "Sudah"].index(r.get("status_bpjs", "Belum"))
+              if r.get("status_bpjs") in ["Belum", "Sudah"]
               else 0
           )
           u_bpjs = st.selectbox(
@@ -248,15 +274,16 @@ with tab2:
           )
 
           u_alamat = st.text_area(
-              "Alamat Pemenang", value=str(r["alamat_pemenang"] or "")
+              "Alamat Pemenang", value=str(r.get("alamat_pemenang", "") or "")
           )
 
           uc5, uc6 = st.columns(2)
           u_email = uc5.text_input(
-              "Email Pemenang", value=str(r["email_pemenang"] or "")
+              "Email Pemenang", value=str(r.get("email_pemenang", "") or "")
           )
           u_telp = uc6.text_input(
-              "Nomor Telepon Pemenang", value=str(r["telp_pemenang"] or "")
+              "Nomor Telepon Pemenang",
+              value=str(r.get("telp_pemenang", "") or ""),
           )
 
           submit_update = st.form_submit_button(
@@ -298,8 +325,10 @@ with tab2:
 # TAB 3: LAPORAN
 with tab3:
   st.subheader("Rekapitulasi Paket Non-Tender & Peringatan Otomatis")
-  query_nt = "SELECT * FROM tabel_nontender"
-  df_nontender = pd.read_sql_query(query_nt, conn)
+  try:
+    df_nontender = pd.read_sql_query("SELECT * FROM tabel_nontender", conn)
+  except Exception:
+    df_nontender = pd.DataFrame()
 
   if not df_nontender.empty:
     st.dataframe(df_nontender, use_container_width=True, hide_index=True)
