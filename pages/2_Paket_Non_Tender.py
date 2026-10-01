@@ -21,7 +21,6 @@ cursor = conn.cursor()
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS tabel_nontender (
     kode_nontender TEXT PRIMARY KEY,
-    kode_rup TEXT,
     nama_nontender TEXT,
     jenis_pengadaan TEXT,
     satuan_kerja TEXT,
@@ -51,30 +50,6 @@ CREATE TABLE IF NOT EXISTS tabel_log_notifikasi (
 )
 """)
 conn.commit()
-
-# Pengaman otomatis: Tambahkan kolom jika tabel sudah ada tapi kurang lengkap
-kolom_tambahan = [
-    ("kode_rup", "TEXT"),
-    ("satuan_kerja", "TEXT"),
-    ("nilai_pagu", "REAL"),
-    ("nilai_hps", "REAL"),
-    ("jenis_pengadaan", "TEXT"),
-    ("nama_pemenang", "TEXT"),
-    ("nilai_kontrak", "REAL"),
-    ("alamat_pemenang", "TEXT"),
-    ("email_pemenang", "TEXT"),
-    ("telp_pemenang", "TEXT"),
-    ("tanggal_penetapan", "TEXT"),
-    ("status_bpjs", "TEXT"),
-]
-for col_name, col_type in kolom_tambahan:
-  try:
-    cursor.execute(
-        f"ALTER TABLE tabel_nontender ADD COLUMN {col_name} {col_type}"
-    )
-    conn.commit()
-  except sqlite3.OperationalError:
-    pass
 
 
 def catat_log(
@@ -119,36 +94,34 @@ jenis_pengadaan_opsi = [
 with tab1:
   st.subheader("Formulir Input Non-Tender Baru")
   with st.form("form_tambah_nontender", clear_on_submit=True):
-    c1, c2 = st.columns(2)
-    kode_rup = c1.text_input("1. Kode RUP")
-    kode_nontender = c2.text_input("2. Kode Non-Tender (Unik)")
+    kode_nontender = st.text_input("1. Kode Non-Tender (Unik)")
 
-    nama_nontender = st.text_input("3. Nama Paket")
-    satuan_kerja = st.text_input("4. Satuan Kerja")
+    nama_nontender = st.text_input("2. Nama Paket")
+    satuan_kerja = st.text_input("3. Satuan Kerja")
+
+    c1, c2 = st.columns(2)
+    nilai_pagu = c1.number_input(
+        "4. Nilai Pagu (Rp)", min_value=0.0, format="%.2f"
+    )
+    nilai_hps = c2.number_input("5. Nilai HPS (Rp)", min_value=0.0, format="%.2f")
+
+    jenis_pengadaan = st.selectbox("6. Jenis Pengadaan", jenis_pengadaan_opsi)
+    nama_pemenang = st.text_input("7. Nama Pemenang / Penyedia")
 
     c3, c4 = st.columns(2)
-    nilai_pagu = c3.number_input(
-        "5. Nilai Pagu (Rp)", min_value=0.0, format="%.2f"
+    nilai_kontrak = c3.number_input(
+        "8. Nilai Kontrak (Rp)", min_value=0.0, format="%.2f"
     )
-    nilai_hps = c4.number_input("6. Nilai HPS (Rp)", min_value=0.0, format="%.2f")
+    tanggal_penetapan = c4.date_input("9. Tanggal Penetapan Pemenang")
 
-    jenis_pengadaan = st.selectbox("7. Jenis Pengadaan", jenis_pengadaan_opsi)
-    nama_pemenang = st.text_input("8. Nama Pemenang / Penyedia")
+    alamat_pemenang = st.text_area("10. Alamat Pemenang")
 
     c5, c6 = st.columns(2)
-    nilai_kontrak = c5.number_input(
-        "9. Nilai Kontrak (Rp)", min_value=0.0, format="%.2f"
-    )
-    tanggal_penetapan = c6.date_input("10. Tanggal Penetapan Pemenang")
-
-    alamat_pemenang = st.text_area("11. Alamat Pemenang")
-
-    c7, c8 = st.columns(2)
-    email_pemenang = c7.text_input("12. Email Pemenang")
-    telp_pemenang = c8.text_input("13. Nomor Telepon Pemenang")
+    email_pemenang = c5.text_input("11. Email Pemenang")
+    telp_pemenang = c6.text_input("12. Nomor Telepon Pemenang")
 
     status_bpjs = st.selectbox(
-        "14. Sudah Memenuhi Ketentuan BPJS?", ["Belum", "Sudah"]
+        "13. Sudah Memenuhi Ketentuan BPJS?", ["Belum", "Sudah"]
     )
 
     submit_nt = st.form_submit_button("Simpan Data Non-Tender", type="primary")
@@ -161,13 +134,12 @@ with tab1:
           cursor.execute(
               """
                         INSERT INTO tabel_nontender 
-                        (kode_nontender, kode_rup, nama_nontender, jenis_pengadaan, satuan_kerja, nilai_pagu, nilai_hps, 
+                        (kode_nontender, nama_nontender, jenis_pengadaan, satuan_kerja, nilai_pagu, nilai_hps, 
                          nama_pemenang, nilai_kontrak, alamat_pemenang, email_pemenang, telp_pemenang, tanggal_penetapan, status_bpjs)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
               (
                   kode_nontender,
-                  kode_rup,
                   nama_nontender,
                   jenis_pengadaan,
                   satuan_kerja,
@@ -223,9 +195,6 @@ with tab2:
         st.info(f"Sedang mengedit Kode Non-Tender: **{kode_pilih}**")
 
         with st.form(f"form_edit_nontender_{kode_pilih}"):
-          u_rup = st.text_input(
-              "Kode RUP", value=str(r.get("kode_rup", "") or "")
-          )
           u_nama = st.text_input(
               "Nama Paket", value=str(r.get("nama_nontender", "") or "")
           )
@@ -294,12 +263,11 @@ with tab2:
             cursor.execute(
                 """
                             UPDATE tabel_nontender 
-                            SET kode_rup=?, nama_nontender=?, satuan_kerja=?, nilai_pagu=?, nilai_hps=?, jenis_pengadaan=?, 
+                            SET nama_nontender=?, satuan_kerja=?, nilai_pagu=?, nilai_hps=?, jenis_pengadaan=?, 
                                 nama_pemenang=?, nilai_kontrak=?, alamat_pemenang=?, email_pemenang=?, telp_pemenang=?, status_bpjs=?
                             WHERE kode_nontender=?
                         """,
                 (
-                    u_rup,
                     u_nama,
                     u_satker,
                     u_pagu,
