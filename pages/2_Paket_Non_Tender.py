@@ -290,7 +290,7 @@ with tab2:
   else:
     st.info("Belum ada data Non-Tender tersimpan untuk diedit.")
 
-# TAB 3: LAPORAN
+# TAB 3: LAPORAN (MENGGUNAKAN FORMAT CSV YANG AMAN TANPA EXCELWRITER)
 with tab3:
   st.subheader("Rekapitulasi Paket Non-Tender & Peringatan Otomatis")
   try:
@@ -303,24 +303,17 @@ with tab3:
 
     st.markdown("---")
     st.subheader("📥 Unduh Laporan Data Non-Tender")
-    import io
 
-    output_nontender = io.BytesIO()
-    with pd.ExcelWriter(output_nontender, engine="xlsxwriter") as writer:
-      df_nontender.to_excel(
-          writer, sheet_name="Laporan Non Tender", index=False
-      )
-    excel_data_nontender = output_nontender.getvalue()
+    # Ubah DataFrame ke format CSV murni
+    csv_data = df_nontender.to_csv(index=False).encode("utf-8")
 
     st.download_button(
-        label="📥 Unduh Laporan Non-Tender ke Excel (.xlsx)",
-        data=excel_data_nontender,
-        file_name="Laporan_Kepatuhan_BPJS_NonTender.xlsx",
-        mime=(
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        ),
+        label="📥 Unduh Laporan Non-Tender ke Format CSV (.csv)",
+        data=csv_data,
+        file_name="Laporan_Kepatuhan_BPJS_NonTender.csv",
+        mime="text/csv",
         type="primary",
-        key="btn_download_nontender",
+        key="btn_download_nontender_csv",
     )
   else:
     st.info("Belum ada data Non-Tender tersimpan.")
