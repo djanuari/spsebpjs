@@ -21,7 +21,6 @@ cursor = conn.cursor()
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS tabel_tender (
     kode_tender TEXT PRIMARY KEY,
-    kode_rup TEXT,
     nama_paket TEXT,
     jenis_pengadaan TEXT,
     satuan_kerja TEXT,
@@ -95,36 +94,34 @@ jenis_pengadaan_opsi = [
 with tab1:
   st.subheader("Formulir Input Tender / Seleksi Baru")
   with st.form("form_tambah_tender", clear_on_submit=True):
-    c1, c2 = st.columns(2)
-    kode_rup = c1.text_input("1. Kode RUP")
-    kode_tender = c2.text_input("2. Kode Tender (Unik)")
+    kode_tender = st.text_input("1. Kode Tender (Unik)")
 
-    nama_paket = st.text_input("3. Nama Paket")
-    satuan_kerja = st.text_input("4. Satuan Kerja")
+    nama_paket = st.text_input("2. Nama Paket")
+    satuan_kerja = st.text_input("3. Satuan Kerja")
+
+    c1, c2 = st.columns(2)
+    nilai_pagu = c1.number_input(
+        "4. Nilai Pagu (Rp)", min_value=0.0, format="%.2f"
+    )
+    nilai_hps = c2.number_input("5. Nilai HPS (Rp)", min_value=0.0, format="%.2f")
+
+    jenis_pengadaan = st.selectbox("6. Jenis Pengadaan", jenis_pengadaan_opsi)
+    nama_pemenang = st.text_input("7. Nama Pemenang / Penyedia")
 
     c3, c4 = st.columns(2)
-    nilai_pagu = c3.number_input(
-        "5. Nilai Pagu (Rp)", min_value=0.0, format="%.2f"
+    nilai_kontrak = c3.number_input(
+        "8. Nilai Kontrak (Rp)", min_value=0.0, format="%.2f"
     )
-    nilai_hps = c4.number_input("6. Nilai HPS (Rp)", min_value=0.0, format="%.2f")
+    tanggal_penetapan = c4.date_input("9. Tanggal Penetapan Pemenang")
 
-    jenis_pengadaan = st.selectbox("7. Jenis Pengadaan", jenis_pengadaan_opsi)
-    nama_pemenang = st.text_input("8. Nama Pemenang / Penyedia")
+    alamat_pemenang = st.text_area("10. Alamat Pemenang")
 
     c5, c6 = st.columns(2)
-    nilai_kontrak = c5.number_input(
-        "9. Nilai Kontrak (Rp)", min_value=0.0, format="%.2f"
-    )
-    tanggal_penetapan = c6.date_input("10. Tanggal Penetapan Pemenang")
-
-    alamat_pemenang = st.text_area("11. Alamat Pemenang")
-
-    c7, c8 = st.columns(2)
-    email_pemenang = c7.text_input("12. Email Pemenang")
-    telp_pemenang = c8.text_input("13. Nomor Telepon Pemenang")
+    email_pemenang = c5.text_input("11. Email Pemenang")
+    telp_pemenang = c6.text_input("12. Nomor Telepon Pemenang")
 
     status_bpjs = st.selectbox(
-        "14. Sudah Memenuhi Ketentuan BPJS?", ["Belum", "Sudah"]
+        "13. Sudah Memenuhi Ketentuan BPJS?", ["Belum", "Sudah"]
     )
 
     submit_t = st.form_submit_button("Simpan Data Tender", type="primary")
@@ -137,13 +134,12 @@ with tab1:
           cursor.execute(
               """
                         INSERT INTO tabel_tender 
-                        (kode_tender, kode_rup, nama_paket, jenis_pengadaan, satuan_kerja, nilai_pagu, nilai_hps, 
+                        (kode_tender, nama_paket, jenis_pengadaan, satuan_kerja, nilai_pagu, nilai_hps, 
                          nama_pemenang, nilai_kontrak, alamat_pemenang, email_pemenang, telp_pemenang, tanggal_penetapan, status_bpjs)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
               (
                   kode_tender,
-                  kode_rup,
                   nama_paket,
                   jenis_pengadaan,
                   satuan_kerja,
@@ -170,13 +166,18 @@ with tab1:
 # TAB 2: EDIT DATA
 with tab2:
   st.subheader("Edit Data Berdasarkan Kode Tender")
-  df_list = pd.read_sql_query(
-      "SELECT kode_tender, nama_paket FROM tabel_tender", conn
-  )
+  try:
+    df_list = pd.read_sql_query(
+        "SELECT kode_tender, nama_paket FROM tabel_tender", conn
+    )
+  except Exception:
+    df_list = pd.DataFrame()
 
   if not df_list.empty:
     df_list["label_edit"] = (
-        df_list["kode_tender"] + " - " + df_list["nama_paket"].fillna("")
+        df_list["kode_tender"].astype(str)
+        + " - "
+        + df_list["nama_paket"].fillna("")
     )
     pilihan_edit = st.selectbox(
         "Pilih Kode Tender yang ingin diedit:", df_list["label_edit"].tolist()
@@ -193,31 +194,27 @@ with tab2:
         r = df_row.iloc[0]
         st.info(f"Sedang mengedit Kode Tender: **{kode_pilih}**")
 
-        # Form dibuat dinamis berdasarkan kode_pilih agar isian ter-refresh otomatis
         with st.form(f"form_edit_tender_{kode_pilih}"):
-          u_rup = st.text_input(
-              "Kode RUP", value=str(r["kode_rup"] or "")
-          )
           u_nama = st.text_input(
-              "Nama Paket", value=str(r["nama_paket"] or "")
+              "Nama Paket", value=str(r.get("nama_paket", "") or "")
           )
           u_satker = st.text_input(
-              "Satuan Kerja", value=str(r["satuan_kerja"] or "")
+              "Satuan Kerja", value=str(r.get("satuan_kerja", "") or "")
           )
 
           uc1, uc2 = st.columns(2)
           u_pagu = uc1.number_input(
               "Nilai Pagu (Rp)",
-              value=float(r["nilai_pagu"] or 0.0),
+              value=float(r.get("nilai_pagu", 0.0) or 0.0),
               format="%.2f",
           )
           u_hps = uc2.number_input(
               "Nilai HPS (Rp)",
-              value=float(r["nilai_hps"] or 0.0),
+              value=float(r.get("nilai_hps", 0.0) or 0.0),
               format="%.2f",
           )
 
-          curr_jp = r["jenis_pengadaan"]
+          curr_jp = r.get("jenis_pengadaan", "Pengadaan Barang")
           jp_idx = (
               jenis_pengadaan_opsi.index(curr_jp)
               if curr_jp in jenis_pengadaan_opsi
@@ -227,18 +224,18 @@ with tab2:
               "Jenis Pengadaan", jenis_pengadaan_opsi, index=jp_idx
           )
           u_pemenang = st.text_input(
-              "Nama Pemenang", value=str(r["nama_pemenang"] or "")
+              "Nama Pemenang", value=str(r.get("nama_pemenang", "") or "")
           )
 
           uc3, uc4 = st.columns(2)
           u_nilai = uc3.number_input(
               "Nilai Kontrak (Rp)",
-              value=float(r["nilai_kontrak"] or 0.0),
+              value=float(r.get("nilai_kontrak", 0.0) or 0.0),
               format="%.2f",
           )
           stat_idx = (
-              ["Belum", "Sudah"].index(r["status_bpjs"])
-              if r["status_bpjs"] in ["Belum", "Sudah"]
+              ["Belum", "Sudah"].index(r.get("status_bpjs", "Belum"))
+              if r.get("status_bpjs") in ["Belum", "Sudah"]
               else 0
           )
           u_bpjs = st.selectbox(
@@ -246,15 +243,16 @@ with tab2:
           )
 
           u_alamat = st.text_area(
-              "Alamat Pemenang", value=str(r["alamat_pemenang"] or "")
+              "Alamat Pemenang", value=str(r.get("alamat_pemenang", "") or "")
           )
 
           uc5, uc6 = st.columns(2)
           u_email = uc5.text_input(
-              "Email Pemenang", value=str(r["email_pemenang"] or "")
+              "Email Pemenang", value=str(r.get("email_pemenang", "") or "")
           )
           u_telp = uc6.text_input(
-              "Nomor Telepon Pemenang", value=str(r["telp_pemenang"] or "")
+              "Nomor Telepon Pemenang",
+              value=str(r.get("telp_pemenang", "") or ""),
           )
 
           submit_update = st.form_submit_button(
@@ -265,12 +263,11 @@ with tab2:
             cursor.execute(
                 """
                             UPDATE tabel_tender 
-                            SET kode_rup=?, nama_paket=?, satuan_kerja=?, nilai_pagu=?, nilai_hps=?, jenis_pengadaan=?, 
+                            SET nama_paket=?, satuan_kerja=?, nilai_pagu=?, nilai_hps=?, jenis_pengadaan=?, 
                                 nama_pemenang=?, nilai_kontrak=?, alamat_pemenang=?, email_pemenang=?, telp_pemenang=?, status_bpjs=?
                             WHERE kode_tender=?
                         """,
                 (
-                    u_rup,
                     u_nama,
                     u_satker,
                     u_pagu,
@@ -295,8 +292,10 @@ with tab2:
 # TAB 3: LAPORAN
 with tab3:
   st.subheader("Rekapitulasi Paket Tender & Peringatan Otomatis")
-  query_t = "SELECT * FROM tabel_tender"
-  df_tender = pd.read_sql_query(query_t, conn)
+  try:
+    df_tender = pd.read_sql_query("SELECT * FROM tabel_tender", conn)
+  except Exception:
+    df_tender = pd.DataFrame()
 
   if not df_tender.empty:
     st.dataframe(df_tender, use_container_width=True, hide_index=True)
