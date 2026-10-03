@@ -188,7 +188,7 @@ with tab2:
             " permanen?"
         )
         if st.button(
-            f"🗑️️ Hapus Paket Non-Tender ({kode_pilih})",
+            f"🗑️ Hapus Paket Non-Tender ({kode_pilih})",
             type="secondary",
             key=f"del_nt_{kode_pilih}",
         ):
@@ -210,6 +210,14 @@ with tab2:
 with tab3:
   st.subheader("Rekapitulasi Paket Non-Tender & Peringatan Otomatis")
   if not df_nontender.empty:
+    # --- LOGIKA NOTIFIKASI PERINGATAN OTOMATIS ---
+    def cek_notifikasi_status(row):
+      status = str(row.get("status_kepatuhan", "Belum")).capitalize()
+      if status == "Belum":
+        return "🚨 Wajib Kirim Notifikasi (Belum Patuh)"
+      else:
+        return "✅ Selesai / Patuh"
+
     df_tampil = pd.DataFrame()
     df_tampil["kode_nontender"] = df_nontender.get("id_paket", "")
     df_tampil["nama_nontender"] = df_nontender.get("nama_paket", "")
@@ -244,6 +252,23 @@ with tab3:
     df_tampil["email_pemenang"] = df_nontender.get("email_pemenang", "")
     df_tampil["telp_pemenang"] = df_nontender.get("telp_pemenang", "")
     df_tampil["Status"] = df_nontender.get("status_kepatuhan", "Belum")
+    df_tampil["Peringatan_Notif"] = df_nontender.apply(
+        cek_notifikasi_status, axis=1
+    )
+
+    # Tampilkan ringkasan jumlah paket yang wajib dikirim pesan
+    total_belum = (df_tampil["Status"].str.capitalize() == "Belum").sum()
+    if total_belum > 0:
+      st.error(
+          f"🚨 Perhatian: Ada **{total_belum} paket Non-Tender** yang status"
+          " kepatuhan BPJS-nya masih **Belum** dan memerlukan pengiriman"
+          " pesan/notifikasi segera!"
+      )
+    else:
+      st.success(
+          "✅ Seluruh paket Non-Tender telah memenuhi ketentuan kepatuhan"
+          " BPJS."
+      )
 
     st.dataframe(
         df_tampil,
@@ -264,6 +289,7 @@ with tab3:
             "email_pemenang": "email_pemenang",
             "telp_pemenang": "telp_pemenang",
             "Status": "Status",
+            "Peringatan_Notif": "Peringatan Notifikasi",
         },
         use_container_width=True,
         hide_index=True,
@@ -337,6 +363,18 @@ with tab3:
           telp_tujuan = (
               row_n.get("telp_pemenang", "") or "Belum ada nomor WA terdaftar"
           )
+          status_pilih = row_n.get("status_kepatuhan", "Belum")
+
+          if status_pilih.capitalize() == "Belum":
+            st.warning(
+                "🚨 **Status Paket Ini Masih Belum Patuh:** Paket ini wajib"
+                " segera dikirimi pesan peringatan BPJS!"
+            )
+          else:
+            st.info(
+                "✅ **Status Paket Ini Sudah Selesai/Patuh:** Pengiriman pesan"
+                " bersifat konfirmasi ulang."
+            )
 
           st.info(
               f"📌 **Kontak Pemenang Terdeteksi dari Database:**\n- Email:"
@@ -360,14 +398,14 @@ Berikut disampaikan laporan pemenang paket Non-Tender yang memerlukan verifikasi
 - Kode Paket: {kode_pilih_nt}
 - Nama Paket: {row_n.get('nama_paket', '')}
 - Nama Pemenang: {pemenang}
-- Status BPJS: {row_n.get('status_kepatuhan', 'Belum')}
+- Status BPJS: {status_pilih}
 
 Mohon kiranya dapat ditindaklanjuti sesuai ketentuan yang berlaku.
 
 Hormat kami,
 Admin SPSE Pemerintah Kota Kendari"""
 
-          wa_text_pic = f"Halo Tim PIC BPJS,\n\nBerikut disampaikan laporan pemenang paket Non-Tender untuk ditindaklanjuti:\n- Kode: {kode_pilih_nt}\n- Paket: {row_n.get('nama_paket', '')}\n- Pemenang: {pemenang}\n- Status BPJS: {row_n.get('status_kepatuhan', 'Belum')}\n\nTerima kasih."
+          wa_text_pic = f"Halo Tim PIC BPJS,\n\nBerikut disampaikan laporan pemenang paket Non-Tender untuk ditindaklanjuti:\n- Kode: {kode_pilih_nt}\n- Paket: {row_n.get('nama_paket', '')}\n- Pemenang: {pemenang}\n- Status BPJS: {status_pilih}\n\nTerima kasih."
 
           with st.expander("📄 Pratinjau Pesan (Pemenang & PIC BPJS)"):
             st.markdown("**1. Pesan untuk Pemenang:**")
