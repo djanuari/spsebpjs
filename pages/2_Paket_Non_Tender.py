@@ -257,18 +257,15 @@ with tab3:
       except Exception:
         return "🚨 Wajib Kirim Notifikasi (Belum Patuh)"
 
-    # Fungsi ekstraksi universal yang mendukung pemisah '||' maupun '|' tunggal
     def extract_ket(text, key):
       try:
         if not text or key not in str(text):
           return "-"
-        # Coba pisahkan dengan pemisah ganda terlebih dahulu
         parts = str(text).split("||")
         for p in parts:
           if key in p:
             val = p.split(key)[1].strip()
             return val if val else "-"
-        # Cadangan jika menggunakan pemisah tunggal
         parts_single = str(text).split("|")
         for p in parts_single:
           if key in p:
@@ -279,42 +276,43 @@ with tab3:
         return "-"
 
     df_tampil = pd.DataFrame()
-    df_tampil["Kode Paket"] = df_nontender.get("id_paket", "")
-    df_tampil["Nama Paket"] = df_nontender.get("nama_paket", "")
 
-    df_tampil["Jenis Pengadaan"] = df_nontender.get("keterangan", "").apply(
+    # Urutan kolom disesuaikan persis dengan formulir input (1 s.d. 12)
+    df_tampil["1. Kode Paket"] = df_nontender.get("id_paket", "")
+    df_tampil["2. Nama Paket"] = df_nontender.get("nama_paket", "")
+    df_tampil["3. Jenis Pengadaan"] = df_nontender.get("keterangan", "").apply(
         lambda x: extract_ket(x, "Jenis:")
     )
-    df_tampil["Satuan Kerja"] = df_nontender.get("keterangan", "").apply(
+    df_tampil["4. Satuan Kerja"] = df_nontender.get("keterangan", "").apply(
         lambda x: extract_ket(x, "Satuan Kerja:")
     )
-    df_tampil["Tahapan Pengadaan"] = df_nontender.get("keterangan", "").apply(
+    df_tampil["5. Tahapan Pengadaan"] = df_nontender.get("keterangan", "").apply(
         lambda x: extract_ket(x, "Tahapan:")
     )
-
-    df_tampil["Nama Pemenang"] = df_nontender.get("pemenang", "")
-    df_tampil["Tanggal Selesai Pemilihan / Kontrak"] = df_nontender.get(
+    df_tampil["6. Nama Pemenang"] = df_nontender.get("pemenang", "")
+    df_tampil["7. Tanggal Selesai Pemilihan / Kontrak"] = df_nontender.get(
         "tanggal_tarik", ""
     )
-    df_tampil["Nilai Kontrak"] = df_nontender.get("pagu", 0.0)
-
-    df_tampil["Alamat"] = df_nontender.get("keterangan", "").apply(
-        lambda x: extract_ket(x, "Alamat:")
-    )
-    df_tampil["Email"] = df_nontender.get("email_pemenang", "")
-    df_tampil["Telepon"] = df_nontender.get("telp_pemenang", "")
-    df_tampil["Status Kepatuhan BPJS"] = df_nontender.get(
+    df_tampil["8. Nilai Kontrak"] = df_nontender.get("pagu", 0.0)
+    df_tampil["9. Status Kepatuhan BPJS"] = df_nontender.get(
         "status_kepatuhan", "Belum"
     )
+    df_tampil["10. Alamat"] = df_nontender.get("keterangan", "").apply(
+        lambda x: extract_ket(x, "Alamat:")
+    )
+    df_tampil["11. Email"] = df_nontender.get("email_pemenang", "")
+    df_tampil["12. Telepon"] = df_nontender.get("telp_pemenang", "")
+
+    # Kolom Evaluasi Otomatis sistem
     df_tampil["Evaluasi_Otomatis"] = df_nontender.apply(
         evaluasi_berdasarkan_tanggal, axis=1
     )
 
     # Pengurutan: Pemilihan Berlangsung di atas, Status Belum di atas
-    df_tampil["_sort_tahapan"] = df_tampil["Tahapan Pengadaan"].apply(
+    df_tampil["_sort_tahapan"] = df_tampil["5. Tahapan Pengadaan"].apply(
         lambda x: 0 if "Pemilihan Berlangsung" in str(x) else 1
     )
-    df_tampil["_sort_status"] = df_tampil["Status Kepatuhan BPJS"].apply(
+    df_tampil["_sort_status"] = df_tampil["9. Status Kepatuhan BPJS"].apply(
         lambda x: 0 if str(x).lower() == "belum" else 1
     )
 
@@ -324,7 +322,7 @@ with tab3:
 
     total_urgent = df_tampil["Evaluasi_Otomatis"].str.contains("URGENT").sum()
     total_belum = (
-        df_tampil["Status Kepatuhan BPJS"].str.capitalize() == "Belum"
+        df_tampil["9. Status Kepatuhan BPJS"].str.capitalize() == "Belum"
     ).sum()
 
     if total_urgent > 0:
@@ -342,22 +340,22 @@ with tab3:
     st.dataframe(
         df_tampil,
         column_config={
-            "Kode Paket": "Kode Paket",
-            "Nama Paket": "Nama Paket",
-            "Jenis Pengadaan": "Jenis Pengadaan",
-            "Satuan Kerja": "Satuan Kerja",
-            "Tahapan Pengadaan": "Tahapan Pengadaan",
-            "Nama Pemenang": "Nama Pemenang",
-            "Tanggal Selesai Pemilihan / Kontrak": (
-                "Tanggal Selesai Pemilihan / Kontrak"
+            "1. Kode Paket": "1. Kode Paket",
+            "2. Nama Paket": "2. Nama Paket",
+            "3. Jenis Pengadaan": "3. Jenis Pengadaan",
+            "4. Satuan Kerja": "4. Satuan Kerja",
+            "5. Tahapan Pengadaan": "5. Tahapan Pengadaan",
+            "6. Nama Pemenang": "6. Nama Pemenang",
+            "7. Tanggal Selesai Pemilihan / Kontrak": (
+                "7. Tanggal Selesai Pemilihan / Kontrak"
             ),
-            "Nilai Kontrak": st.column_config.NumberColumn(
-                "Nilai Kontrak", format="Rp %.2f"
+            "8. Nilai Kontrak": st.column_config.NumberColumn(
+                "8. Nilai Kontrak", format="Rp %.2f"
             ),
-            "Alamat": "Alamat",
-            "Email": "Email",
-            "Telepon": "Telepon",
-            "Status Kepatuhan BPJS": "Status Kepatuhan BPJS",
+            "9. Status Kepatuhan BPJS": "9. Status Kepatuhan BPJS",
+            "10. Alamat": "10. Alamat",
+            "11. Email": "11. Email",
+            "12. Telepon": "12. Telepon",
             "Evaluasi_Otomatis": "Status Peringatan (H+1)",
         },
         use_container_width=True,
