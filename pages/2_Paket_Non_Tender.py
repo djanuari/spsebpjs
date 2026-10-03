@@ -76,15 +76,14 @@ with tab1:
             "id_paket": kode_paket.strip(),
             "nama_paket": nama_paket,
             "kategori": "Non-Tender",
-            "pagu": nilai_kontrak,  # Disimpan di kolom pagu database
+            "pagu": nilai_kontrak,
             "hps": 0.0,
             "pemenang": nama_pemenang,
             "status_kepatuhan": status_bpjs,
             "tanggal_tarik": str(tanggal_selesai),
             "email_pemenang": email,
             "telp_pemenang": telepon,
-            # Menyimpan detail lengkap dengan penanda jelas untuk diparsing ulang
-            "keterangan": f"Satuan Kerja: {satuan_kerja} | Jenis: {jenis_pengadaan} | Tahapan: {tahapan_pengadaan} | Alamat: {alamat}",
+            "keterangan": f"Satuan Kerja: {satuan_kerja} || Jenis: {jenis_pengadaan} || Tahapan: {tahapan_pengadaan} || Alamat: {alamat}",
         }
         if upsert_spse_data(data_baru):
           st.success(
@@ -198,7 +197,6 @@ with tab2:
           except Exception as e:
             st.error(f"Gagal menghapus data: {e}")
 
-    # --- HAPUS SEMUA DATA NON-TENDER ---
     st.markdown("---")
     st.error("🚨 Zona Bahaya: Hapus Seluruh Data Non-Tender")
     with st.expander("⚠ Klik untuk opsi Hapus Semua Data Non-Tender"):
@@ -259,15 +257,23 @@ with tab3:
       except Exception:
         return "🚨 Wajib Kirim Notifikasi (Belum Patuh)"
 
-    # Fungsi bantu ekstraksi teks aman dari kolom keterangan
+    # Fungsi ekstraksi universal yang mendukung pemisah '||' maupun '|' tunggal
     def extract_ket(text, key):
       try:
         if not text or key not in str(text):
           return "-"
-        parts = str(text).split("|")
+        # Coba pisahkan dengan pemisah ganda terlebih dahulu
+        parts = str(text).split("||")
         for p in parts:
           if key in p:
-            return p.split(key)[1].strip()
+            val = p.split(key)[1].strip()
+            return val if val else "-"
+        # Cadangan jika menggunakan pemisah tunggal
+        parts_single = str(text).split("|")
+        for p in parts_single:
+          if key in p:
+            val = p.split(key)[1].strip()
+            return val if val else "-"
         return "-"
       except Exception:
         return "-"
@@ -276,7 +282,6 @@ with tab3:
     df_tampil["Kode Paket"] = df_nontender.get("id_paket", "")
     df_tampil["Nama Paket"] = df_nontender.get("nama_paket", "")
 
-    # Ekstraksi akurat dari kolom keterangan database
     df_tampil["Jenis Pengadaan"] = df_nontender.get("keterangan", "").apply(
         lambda x: extract_ket(x, "Jenis:")
     )
