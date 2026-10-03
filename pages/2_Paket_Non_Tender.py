@@ -83,9 +83,9 @@ with tab1:
             "tanggal_tarik": str(tanggal_selesai),
             "email_pemenang": email,
             "telp_pemenang": telepon,
-            # Menyimpan seluruh atribut secara eksplisit di dalam keterangan
+            # Format penyimpanan terstruktur yang spesifik menggunakan tag unik
             "keterangan": (
-                f"satuan_kerja::{satuan_kerja}##jenis_pengadaan::{jenis_pengadaan}##tahapan_pengadaan::{tahapan_pengadaan}##Alamat::{alamat}"
+                f"[SK]:{satuan_kerja}|[JP]:{jenis_pengadaan}|[TP]:{tahapan_pengadaan}|[AL]:{alamat}"
             ),
         }
         if upsert_spse_data(data_baru):
@@ -184,7 +184,7 @@ with tab2:
             " permanen?"
         )
         if st.button(
-            f"🗑️ Hapus Paket Non-Tender ({kode_pilih})",
+            f"🗑️️ Hapus Paket Non-Tender ({kode_pilih})",
             type="secondary",
             key=f"del_nt_{kode_pilih}",
         ):
@@ -260,32 +260,20 @@ with tab3:
       except Exception:
         return "🚨 Wajib Kirim Notifikasi (Belum Patuh)"
 
-    # Fungsi ekstraksi yang sangat fleksibel membaca berbagai pola teks di database
-    def extract_flexible(text, target_keys):
+    # Fungsi ekstraksi spesifik berdasarkan tag unik agar tidak tertukar
+    def extract_by_tag(text, tag):
       try:
         if not text:
           return "-"
         text_str = str(text)
-        for key in target_keys:
-          # Cek pola key::nilai
-          for sep in ["##", "||", "|", ","]:
-            if f"{key}::" in text_str:
-              parts = text_str.split(sep)
-              for p in parts:
-                if f"{key}::" in p:
-                  val = p.split(f"{key}::")[1].strip()
-                  if val:
-                    return val
-            # Cek pola key: nilai
-            if f"{key}:" in text_str:
-              parts = text_str.split(sep)
-              for p in parts:
-                if f"{key}:" in p:
-                  val = p.split(f"{key}:")[1].strip()
-                  if val:
-                    return val
-        # Jika tidak ketemu dengan penanda, kembalikan teks mentahnya jika tidak kosong
-        return text_str if text_str.lower() != "nan" else "-"
+        parts = text_str.split("|")
+        for p in parts:
+          if p.startswith(f"[{tag}]:"):
+            val = p.split(f"[{tag}]:")[1].strip()
+            if val and val != "None":
+              return val
+        # Cadangan pencarian fleksibel jika format lama
+        return "-"
       except Exception:
         return "-"
 
@@ -294,21 +282,15 @@ with tab3:
     df_tampil["kode_nontender"] = df_nontender.get("id_paket", "")
     df_tampil["nama_nontender"] = df_nontender.get("nama_paket", "")
 
-    # Ekstraksi kolom dengan berbagai kemungkinan kunci database
+    # Masing-masing kolom ditarik menggunakan tag spesifiknya
     df_tampil["jenis_pengadaan"] = df_nontender.get("keterangan", "").apply(
-        lambda x: extract_flexible(
-            x, ["jenis_pengadaan", "JenisPengadaan", "Jenis"]
-        )
+        lambda x: extract_by_tag(x, "JP")
     )
     df_tampil["satuan_kerja"] = df_nontender.get("keterangan", "").apply(
-        lambda x: extract_flexible(
-            x, ["satuan_kerja", "SatuanKerja", "Satuan Kerja"]
-        )
+        lambda x: extract_by_tag(x, "SK")
     )
     df_tampil["tahapan_pengadaan"] = df_nontender.get("keterangan", "").apply(
-        lambda x: extract_flexible(
-            x, ["tahapan_pengadaan", "TahapanPengadaan", "Tahapan"]
-        )
+        lambda x: extract_by_tag(x, "TP")
     )
 
     df_tampil["nama_pemenang"] = df_nontender.get("pemenang", "")
@@ -318,7 +300,7 @@ with tab3:
     df_tampil["nilai_kontrak"] = df_nontender.get("pagu", 0.0)
 
     df_tampil["Alamat"] = df_nontender.get("keterangan", "").apply(
-        lambda x: extract_flexible(x, ["Alamat", "alamat"])
+        lambda x: extract_by_tag(x, "AL")
     )
     df_tampil["email"] = df_nontender.get("email_pemenang", "")
     df_tampil["telepon"] = df_nontender.get("telp_pemenang", "")
