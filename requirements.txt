@@ -4,3 +4,4 @@ supabase
 requests
 apscheduler
 openpyxl
+plotly
