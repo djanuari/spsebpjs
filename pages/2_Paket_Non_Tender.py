@@ -418,7 +418,7 @@ with tab3:
           " 'Belum'."
       )
 
-    # Menampilkan tabel dengan format mata uang yang menggunakan pemisah titik (ribuan) dan koma (desimal)
+    # Menampilkan tabel dengan format angka standar (pemisah ribuan otomatis)
     st.dataframe(
         df_tampil,
         column_config={
@@ -430,7 +430,7 @@ with tab3:
             "nama_pemenang": "nama_pemenang",
             "tanggal selesai pemilihan": "tanggal selesai pemilihan",
             "nilai_kontrak": st.column_config.NumberColumn(
-                "nilai_kontrak", format="Rp {:,.2f}"
+                "nilai_kontrak", format="Rp %.2f"
             ),
             "Alamat": "Alamat",
             "email": "email",
@@ -459,7 +459,7 @@ with tab3:
     )
 
     with st.expander(
-        "⚙️ Konfigurasi & Kirim Pesan Otomatis (Pemenang & PIC BPJS)",
+        "⚙️️ Konfigurasi & Kirim Pesan Otomatis (Pemenang & PIC BPJS)",
         expanded=True,
     ):
       col_smtp1, col_smtp2 = st.columns(2)
