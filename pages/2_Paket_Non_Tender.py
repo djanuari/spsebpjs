@@ -29,12 +29,7 @@ jenis_pengadaan_opsi = [
     "Pengadaan Barang",
 ]
 
-tahapan_opsi = [
-    "Penetapan Pemenang",
-    "Penandatanganan Kontrak",
-    "Pelaksanaan Pekerjaan",
-    "Selesai",
-]
+tahapan_opsi = ["Paket Sedang Berlangsung", "Paket Selesai"]
 
 # Ambil data dari Supabase Cloud dan filter kategori Non-Tender
 df_all = get_all_spse_data()
@@ -189,7 +184,7 @@ with tab2:
             " permanen?"
         )
         if st.button(
-            f"🗑️️ Hapus Paket Non-Tender ({kode_pilih})",
+            f"🗑 Hapus Paket Non-Tender ({kode_pilih})",
             type="secondary",
             key=f"del_nt_{kode_pilih}",
         ):
