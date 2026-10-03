@@ -1,4 +1,5 @@
-import sqlite3
+from api_connector import get_all_spse_data, upsert_spse_data
+from supabase import create_client
 import pandas as pd
 import streamlit as st
 
@@ -6,63 +7,15 @@ st.set_page_config(
     page_title="Kelola Data SPSE & E-Purchasing", page_icon="⚙️", layout="wide"
 )
 
-conn = sqlite3.connect("database_spse.db", check_same_thread=False)
-cursor = conn.cursor()
-
-# Pastikan tabel database untuk Tender, Non-Tender, dan E-Purchasing tersedia
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS tabel_tender (
-    kode_tender TEXT PRIMARY KEY,
-    nama_paket TEXT,
-    jenis_pengadaan TEXT,
-    satuan_kerja TEXT,
-    nilai_pagu REAL,
-    nilai_negosiasi REAL,
-    tanggal_penetapan TEXT,
-    nama_pemenang TEXT,
-    alamat_pemenang TEXT,
-    email_pemenang TEXT,
-    telp_pemenang TEXT,
-    status_bpjs TEXT
-)
-""")
-
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS tabel_nontender (
-    kode_nontender TEXT PRIMARY KEY,
-    nama_nontender TEXT,
-    jenis_pengadaan TEXT,
-    satuan_kerja TEXT,
-    nilai_hps REAL,
-    nilai_negosiasi REAL,
-    tanggal_kontrak TEXT,
-    nama_pemenang TEXT,
-    alamat_pemenang TEXT,
-    email_pemenang TEXT,
-    telp_pemenang TEXT,
-    status_bpjs TEXT
-)
-""")
-
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS tabel_epurchasing (
-    kode_paket TEXT PRIMARY KEY,
-    nama_paket TEXT,
-    komoditas TEXT,
-    satuan_kerja TEXT,
-    nilai_transaksi REAL,
-    tanggal_transaksi TEXT,
-    nama_penyedia TEXT,
-    alamat_penyedia TEXT,
-    status_bpjs TEXT
-)
-""")
-conn.commit()
+# Inisialisasi koneksi Supabase untuk eksekusi hapus langsung jika diperlukan
+SUPABASE_URL = st.secrets["supabase"]["url"]
+SUPABASE_KEY = st.secrets["supabase"]["key"]
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 st.title("⚙️ Manajemen Data: Tender, Non-Tender, & E-Purchasing")
 st.write(
     "Gunakan halaman ini untuk mengunggah data baru atau menghapus data tersimpan"
-    " berdasarkan kategori pengadaan."
+    " di cloud berdasarkan kategori pengadaan."
 )
 st.markdown("---")
 
@@ -72,16 +25,13 @@ kategori_pilihan = st.selectbox(
     ["Paket Tender", "Paket Non-Tender", "Paket E-Purchasing"],
 )
 
-# Pemetaan tabel dan kolom kode berdasarkan pilihan
+# Pemetaan kategori untuk disimpan ke kolom 'kategori' di tabel cloud
 if kategori_pilihan == "Paket Tender":
-  target_tabel = "tabel_tender"
-  kolom_kode = "kode_tender"
+  kategori_db = "Tender"
 elif kategori_pilihan == "Paket Non-Tender":
-  target_tabel = "tabel_nontender"
-  kolom_kode = "kode_nontender"
+  kategori_db = "Non-Tender"
 else:
-  target_tabel = "tabel_epurchasing"
-  kolom_kode = "kode_paket"
+  kategori_db = "E-Purchasing"
 
 # Tab Menu untuk memisahkan Aksi Impor dan Aksi Hapus
 tab_impor, tab_hapus = st.tabs(["📥 Impor Data Baru", "🗑️ Hapus Data"])
@@ -113,47 +63,70 @@ with tab_impor:
 
       st.markdown("---")
 
-      if st.button("🚀 Proses & Simpan ke Database", type="primary"):
-        with st.spinner("Sedang menyimpan data..."):
+      if st.button("🚀 Proses & Simpan ke Cloud Database", type="primary"):
+        with st.spinner("Sedang menyimpan data ke cloud..."):
           try:
-            kolom_db = [
-                col[1]
-                for col in cursor.execute(
-                    f"PRAGMA table_info({target_tabel})"
-                ).fetchall()
-            ]
-            kolom_tersedia = [c for c in df_import.columns if c in kolom_db]
-
-            if not kolom_tersedia:
-              st.error(
-                  "Nama kolom pada file Excel Anda tidak cocok dengan struktur"
-                  " database."
+            sukses_count = 0
+            for _, row in df_import.iterrows():
+              # Ambil id_paket dari berbagai variasi penamaan kolom file pengguna
+              id_val = (
+                  row.get("id_paket")
+                  or row.get("kode_tender")
+                  or row.get("kode_nontender")
+                  or row.get("kode_paket")
               )
-            else:
-              sukses_count = 0
-              for _, row in df_import.iterrows():
-                data_row = {
-                    col: row[col]
-                    for col in kolom_tersedia
-                    if pd.notna(row[col])
+
+              if pd.notna(id_val):
+                data_dict = {
+                    "id_paket": str(id_val),
+                    "nama_paket": str(
+                        row.get("nama_paket")
+                        or row.get("nama_nontender")
+                        or ""
+                    ),
+                    "kategori": kategori_db,
+                    "pagu": float(
+                        row.get("pagu")
+                        or row.get("nilai_pagu")
+                        or row.get("pagu_paket")
+                        or 0
+                    ),
+                    "hps": float(
+                        row.get("hps") or row.get("nilai_hps") or 0
+                    ),
+                    "pemenang": str(
+                        row.get("pemenang")
+                        or row.get("nama_pemenang")
+                        or row.get("nama_penyedia")
+                        or ""
+                    ),
+                    "status_kepatuhan": str(
+                        row.get("status_kepatuhan")
+                        or row.get("status_bpjs")
+                        or "Belum"
+                    ),
+                    "tanggal_tarik": str(
+                        row.get("tanggal_tarik")
+                        or row.get("tanggal_penetapan")
+                        or row.get("tanggal_kontrak")
+                        or ""
+                    ),
+                    "keterangan": str(
+                        row.get("keterangan")
+                        or row.get("satuan_kerja")
+                        or f"Kategori: {kategori_pilihan}"
+                    ),
                 }
-                if data_row:
-                  keys = ", ".join(data_row.keys())
-                  placeholders = ", ".join([":" + k for k in data_row.keys()])
-                  sql = (
-                      f"INSERT OR REPLACE INTO {target_tabel} ({keys}) VALUES"
-                      f" ({placeholders})"
-                  )
-                  cursor.execute(sql, data_row)
+
+                if upsert_spse_data(data_dict):
                   sukses_count += 1
 
-              conn.commit()
-              st.success(
-                  f"🎉 Berhasil! Sebanyak **{sukses_count} baris data** telah"
-                  f" disimpan ke `{target_tabel}`."
-              )
+            st.success(
+                f"🎉 Berhasil! Sebanyak **{sukses_count} baris data** telah"
+                f" disimpan ke tabel cloud untuk {kategori_pilihan}."
+            )
           except Exception as db_err:
-            st.error(f"Gagal menyimpan ke database. Detail: {db_err}")
+            st.error(f"Gagal menyimpan ke database cloud. Detail: {db_err}")
     except Exception as e:
       st.error(f"Terjadi kesalahan saat membaca file: {e}")
 
@@ -161,34 +134,40 @@ with tab_impor:
 with tab_hapus:
   st.subheader(f"🗑️ Kelola Penghapusan Data ({kategori_pilihan})")
 
-  # Tampilkan jumlah data saat ini di database
-  df_existing = pd.read_sql_query(f"SELECT * FROM {target_tabel}", conn)
+  # Ambil data dari cloud dan filter berdasarkan kategori yang dipilih
+  df_all = get_all_spse_data()
+  if not df_all.empty and "kategori" in df_all.columns:
+    df_existing = df_all[
+        df_all["kategori"].str.lower() == kategori_db.lower()
+    ]
+  else:
+    df_existing = pd.DataFrame()
+
   st.info(
-      f"Saat ini terdapat **{len(df_existing)} baris data** di dalam"
-      f" `{target_tabel}`."
+      f"Saat ini terdapat **{len(df_existing)} baris data** tersimpan untuk"
+      f" kategori {kategori_pilihan} di cloud."
   )
 
   if len(df_existing) > 0:
     st.markdown("---")
 
-    # Opsi 1: Hapus berdasarkan Kode Tertentu
+    # Opsi 1: Hapus berdasarkan ID/Kode Tertentu
     st.markdown("### 1. Hapus Berdasarkan Kode Paket")
+    list_kode = df_existing["id_paket"].astype(str).tolist()
     kode_terpilih = st.selectbox(
         "Pilih Kode Paket yang ingin dihapus:",
-        options=["-- Pilih Kode --"] + df_existing[kolom_kode].tolist(),
+        options=["-- Pilih Kode --"] + list_kode,
     )
 
     if kode_terpilih != "-- Pilih Kode --":
       if st.button("🗑️ Hapus Paket Ini", type="secondary"):
         try:
-          cursor.execute(
-              f"DELETE FROM {target_tabel} WHERE {kolom_kode} = ?",
-              (kode_terpilih,),
-          )
-          conn.commit()
+          supabase.table("tabel_spse_bpjs").delete().eq(
+              "id_paket", kode_terpilih
+          ).execute()
           st.success(
-              f"Data dengan {kolom_kode} **{kode_terpilih}** berhasil"
-              " dihapus!"
+              f"Data dengan kode **{kode_terpilih}** berhasil dihapus dari"
+              " cloud!"
           )
           st.rerun()
         except Exception as e:
@@ -196,28 +175,28 @@ with tab_hapus:
 
     st.markdown("---")
 
-    # Opsi 2: Reset / Kosongkan Seluruh Tabel
-    st.markdown("### 2. Zona Bahaya: Kosongkan Seluruh Tabel")
+    # Opsi 2: Kosongkan Kategori Ini
+    st.markdown("### 2. Zona Bahaya: Kosongkan Kategori Ini")
     st.warning(
-        "Tindakan ini akan menghapus **seluruh** data paket pada tabel"
-        f" `{target_tabel}` secara permanen!"
+        "Tindakan ini akan menghapus **seluruh** data paket untuk kategori"
+        f" `{kategori_pilihan}` secara permanen dari cloud!"
     )
 
     konfirmasi_reset = st.checkbox(
-        "Saya yakin ingin menghapus seluruh data pada tabel ini"
+        "Saya yakin ingin menghapus seluruh data kategori ini"
     )
     if konfirmasi_reset:
-      if st.button(
-          "⚠️ Kosongkan Seluruh Tabel Sekarang", type="primary"
-      ):
+      if st.button("⚠️ Kosongkan Kategori Ini Sekarang", type="primary"):
         try:
-          cursor.execute(f"DELETE FROM {target_tabel}")
-          conn.commit()
+          supabase.table("tabel_spse_bpjs").delete().eq(
+              "kategori", kategori_db
+          ).execute()
           st.success(
-              f"Seluruh data pada tabel `{target_tabel}` berhasil dikosongkan!"
+              f"Seluruh data untuk kategori `{kategori_pilihan}` berhasil"
+              " dikosongkan!"
           )
           st.rerun()
         except Exception as e:
-          st.error(f"Gagal mengosongkan tabel: {e}")
+          st.error(f"Gagal mengosongkan data: {e}")
   else:
-    st.write("Belum ada data yang tersimpan di dalam tabel ini.")
+    st.write("Belum ada data yang tersimpan di dalam kategori ini.")
