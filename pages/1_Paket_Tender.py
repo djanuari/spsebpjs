@@ -40,8 +40,9 @@ tahapan_opsi = ["Pemilihan Berlangsung", "Pemilihan Selesai"]
 with tab_import:
   st.subheader("📤 Unggah File Excel Rujukan Tender")
   st.info(
-      "Unggah file Excel Anda di sini. Sistem akan otomatis menyinkronkan"
-      " seluruh kolom termasuk nilai_kontrak ke database."
+      "Unggah file Excel Anda di sini. Sistem akan membaca kolom"
+      " `nilai_kontrak` dan menyinkronkan seluruh data ke database secara"
+      " presisi."
   )
 
   uploaded_excel = st.file_uploader(
@@ -83,9 +84,9 @@ with tab_import:
                 f"[SK]:{satuan_kerja}|[JP]:{jenis_pengadaan}|[TP]:{tahapan_pengadaan}|[AL]:{alamat}"
             )
 
-            # Mengambil nilai kontrak langsung dari kolom nilai_kontrak atau pagu di file Excel
+            # Mengambil nilai kontrak secara langsung
             val_nilai_kontrak = 0.0
-            for col_n in ["nilai_kontrak", "pagu", "nilai_pagu"]:
+            for col_n in ["nilai_kontrak", "nilai_pagu", "hps"]:
               if col_n in row and pd.notna(row[col_n]):
                 try:
                   val_nilai_kontrak = float(row[col_n])
@@ -115,7 +116,7 @@ with tab_import:
                     or ""
                 ),
                 "kategori": "Tender",
-                "pagu": val_nilai_kontrak,  # Disimpan ke kolom pagu di database
+                "pagu": val_nilai_kontrak,  # Disimpan ke database
                 "hps": 0.0,
                 "pemenang": val_pemenang,
                 "status_kepatuhan": str(
@@ -326,7 +327,7 @@ with tab2:
           " cloud secara permanen dan tidak dapat dikembalikan."
       )
       konfirmasi_hapus_semua = st.checkbox(
-          "I yakin ingin menghapus seluruh data Tender",
+          "Saya yakin ingin menghapus seluruh data Tender",
           key="chk_hapus_semua_t",
       )
       if st.button(
@@ -422,7 +423,7 @@ with tab3:
         "tanggal_tarik", pd.Series()
     ).fillna("-")
 
-    # Format rupiah persis seperti tab Non-Tender menggunakan data dari kolom 'pagu'
+    # Format rupiah persis seperti tab Non-Tender menggunakan data 'pagu'
     raw_pagu = df_tender.get("pagu", pd.Series()).fillna(0.0)
 
     def format_rupiah(val):
