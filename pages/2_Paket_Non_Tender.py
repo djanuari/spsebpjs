@@ -372,9 +372,28 @@ with tab3:
     df_tampil["tanggal selesai pemilihan"] = df_nontender.get(
         "tanggal_tarik", pd.Series()
     ).fillna("-")
-    df_tampil["nilai_kontrak"] = df_nontender.get("pagu", pd.Series()).fillna(
-        0.0
-    )
+
+    # Memformat nilai kontrak secara kustom menggunakan titik untuk ribuan dan koma untuk desimal
+    raw_pagu = df_nontender.get("pagu", pd.Series()).fillna(0.0)
+
+
+    def format_rupiah(val):
+      try:
+        num = float(val)
+        # Format dengan titik sebagai pemisah ribuan dan koma untuk desimal
+        formatted_num = f"{num:,.2f}"
+        return (
+            "Rp "
+            + formatted_num.replace(",", "X").replace(".", ",").replace(
+                "X", "."
+            )
+        )
+      except Exception:
+        return "Rp 0,00"
+
+
+    df_tampil["nilai_kontrak"] = raw_pagu.apply(format_rupiah)
+
     df_tampil["email"] = df_nontender.get(
         "email_pemenang", pd.Series()
     ).fillna("-")
@@ -418,29 +437,8 @@ with tab3:
           " 'Belum'."
       )
 
-    # Menampilkan tabel dengan format angka standar (pemisah ribuan otomatis)
-    st.dataframe(
-        df_tampil,
-        column_config={
-            "kode_nontender": "kode_nontender",
-            "nama_nontender": "nama_nontender",
-            "jenis_pengadaan": "jenis_pengadaan",
-            "satuan_kerja": "satuan_kerja",
-            "tahapan_pengadaan": "tahapan_pengadaan",
-            "nama_pemenang": "nama_pemenang",
-            "tanggal selesai pemilihan": "tanggal selesai pemilihan",
-            "nilai_kontrak": st.column_config.NumberColumn(
-                "nilai_kontrak", format="Rp %.2f"
-            ),
-            "Alamat": "Alamat",
-            "email": "email",
-            "telepon": "telepon",
-            "status_kepatuhan": "status_kepatuhan",
-            "Evaluasi_Otomatis": "Status Peringatan (H+1)",
-        },
-        use_container_width=True,
-        hide_index=True,
-    )
+    # Menampilkan tabel secara bersih
+    st.dataframe(df_tampil, use_container_width=True, hide_index=True)
 
     st.markdown("---")
     st.subheader("📥 Unduh Laporan Data Non-Tender")
@@ -459,7 +457,7 @@ with tab3:
     )
 
     with st.expander(
-        "⚙️️ Konfigurasi & Kirim Pesan Otomatis (Pemenang & PIC BPJS)",
+        "⚙️ Konfigurasi & Kirim Pesan Otomatis (Pemenang & PIC BPJS)",
         expanded=True,
     ):
       col_smtp1, col_smtp2 = st.columns(2)
