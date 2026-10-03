@@ -11,23 +11,128 @@ if not st.session_state.get("logged_in"):
   st.stop()
 
 st.set_page_config(
-    page_title="Tender / Seleksi", page_icon="🏛️", layout="wide"
+    page_title="Paket Tender / Seleksi", page_icon="🏛️", layout="wide"
 )
 
-st.title("🏛️ 1. Data Tender / Seleksi & Kepatuhan BPJS")
+st.title("🏛️ 1. Data Paket Tender / Seleksi & Kepatuhan BPJS")
 st.markdown("---")
 
-tab1, tab2, tab3 = st.tabs(
-    ["➕ Tambah Data", "✏️ Edit / Hapus Data", "📋 Daftar & Laporan"]
+tab_import, tab1, tab2, tab3 = st.tabs(
+    [
+        "📤 Impor Excel",
+        "➕ Tambah Data",
+        "✏️️ Edit / Hapus Data",
+        "📋 Daftar & Laporan",
+    ]
 )
 
 jenis_pengadaan_opsi = [
     "Pekerjaan Konstruksi",
-    "Jasa Konsultansi Konstruksi",
-    "Jasa Konsultansi Non Konstruksi",
+    "Jasa Konsultansi Badan Usaha Konstruksi",
+    "Jasa Konsultansi Non Badan Usaha Konstruksi",
     "Jasa Lainnya",
     "Pengadaan Barang",
 ]
+
+tahapan_opsi = ["Pemilihan Berlangsung", "Pemilihan Selesai"]
+
+# TAB IMPORT EXCEL: Sinkronisasi langsung dari file Excel Tender
+with tab_import:
+  st.subheader("📤 Unggah File Excel Rujukan Tender")
+  st.info(
+      "Unggah file Excel Anda di sini. Sistem akan otomatis membaca seluruh"
+      " kolom dan menyimpannya ke database untuk kategori Tender."
+  )
+
+  uploaded_excel = st.file_uploader(
+      "Pilih file Excel (.xlsx)", type=["xlsx", "xls"], key="tender_excel"
+  )
+  if uploaded_excel is not None:
+    try:
+      df_import = pd.read_excel(uploaded_excel)
+      st.write(
+          f"Berhasil membaca file dengan {len(df_import)} baris data. Contoh"
+          " data teratas:"
+      )
+      st.dataframe(df_import.head(3), use_container_width=True)
+
+      if st.button(
+          "🚀 Proses & Simpan Data Tender ke Database",
+          key="btn_proc_tender",
+          type="primary",
+      ):
+        success_count = 0
+        with st.spinner("Sedang menyinkronkan data Tender ke Supabase..."):
+          for _, row in df_import.iterrows():
+            kode = str(
+                row.get("kode_tender", "")
+                or row.get("kode_nontender", "")
+                or row.get("id_paket", "")
+            )
+            if not kode or kode.lower() == "nan":
+              continue
+
+            satuan_kerja = str(row.get("satuan_kerja", "") or "")
+            jenis_pengadaan = str(row.get("jenis_pengadaan", "") or "")
+            tahapan_pengadaan = str(row.get("tahapan_pengadaan", "") or "")
+            alamat = str(
+                row.get("Alamat", "") or row.get("alamat", "") or ""
+            )
+
+            combined_ket = (
+                f"[SK]:{satuan_kerja}|[JP]:{jenis_pengadaan}|[TP]:{tahapan_pengadaan}|[AL]:{alamat}"
+            )
+
+            data_row = {
+                "id_paket": kode.strip(),
+                "nama_paket": str(
+                    row.get("nama_tender", "")
+                    or row.get("nama_nontender", "")
+                    or row.get("nama_paket", "")
+                    or ""
+                ),
+                "kategori": "Tender",
+                "pagu": float(
+                    row.get("nilai_kontrak", 0.0)
+                    or row.get("pagu", 0.0)
+                    or 0.0
+                ),
+                "hps": float(row.get("hps", 0.0) or 0.0),
+                "pemenang": str(
+                    row.get("nama_pemenang", "")
+                    or row.get("pemenang", "")
+                    or ""
+                ),
+                "status_kepatuhan": str(
+                    row.get("status_kepatuhan", "Belum") or "Belum"
+                ),
+                "tanggal_tarik": str(
+                    row.get("tanggal selesai pemilihan", "")
+                    or row.get("tanggal_tarik", "")
+                    or ""
+                ),
+                "email_pemenang": str(
+                    row.get("email", "")
+                    or row.get("email_pemenang", "")
+                    or ""
+                ),
+                "telp_pemenang": str(
+                    row.get("telepon", "")
+                    or row.get("telp_pemenang", "")
+                    or ""
+                ),
+                "keterangan": combined_ket,
+            }
+            if upsert_spse_data(data_row):
+              success_count += 1
+
+        st.success(
+            f"Berhasil menyinkronkan {success_count} data Tender ke database"
+            " cloud!"
+        )
+        st.rerun()
+    except Exception as e:
+      st.error(f"Gagal membaca file Excel: {e}")
 
 # Ambil data dari Supabase Cloud dan filter kategori Tender
 df_all = get_all_spse_data()
@@ -40,60 +145,62 @@ else:
 with tab1:
   st.subheader("Formulir Input Tender Baru")
   with st.form("form_tambah_tender", clear_on_submit=True):
-    kode_tender = st.text_input("1. Kode Tender (Unik)")
-    nama_tender = st.text_input("2. Nama Paket")
-    satuan_kerja = st.text_input("3. Satuan Kerja")
+    kode_tender = st.text_input("1. kode_tender (Primary Key)")
+    nama_tender = st.text_input("2. nama_tender")
 
     c1, c2 = st.columns(2)
-    nilai_hps = c1.number_input("4. Nilai HPS (Rp)", min_value=0.0, format="%.2f")
-    nilai_negosiasi = c2.number_input(
-        "5. Nilai Negosiasi (Rp)", min_value=0.0, format="%.2f"
-    )
-
-    jenis_pengadaan = st.selectbox("6. Jenis Pengadaan", jenis_pengadaan_opsi)
-    nama_pemenang = st.text_input("7. Nama Pemenang / Penyedia")
+    jenis_pengadaan = c1.selectbox("3. jenis_pengadaan", jenis_pengadaan_opsi)
+    satuan_kerja = c2.text_input("4. satuan_kerja")
 
     c3, c4 = st.columns(2)
-    tanggal_kontrak = c3.date_input("8. Tanggal Kontrak")
-    status_bpjs = c4.selectbox(
-        "9. Sudah Memenuhi Ketentuan BPJS?", ["Belum", "Sudah"]
-    )
-
-    alamat_pemenang = st.text_area("10. Alamat Pemenang")
+    tahapan_pengadaan = c3.selectbox("5. tahapan_pengadaan", tahapan_opsi)
+    nama_pemenang = c4.text_input("6. nama_pemenang")
 
     c5, c6 = st.columns(2)
-    email_pemenang = c5.text_input("11. Email Pemenang")
-    telp_pemenang = c6.text_input("12. Nomor Telepon Pemenang")
+    tanggal_selesai = c5.date_input("7. tanggal selesai pemilihan")
+    nilai_kontrak = c6.number_input(
+        "8. nilai_kontrak (Rp)", min_value=0.0, format="%.2f"
+    )
 
-    submit_tnd = st.form_submit_button("Simpan Data Tender", type="primary")
+    status_bpjs = c4.selectbox("9. status_kepatuhan", ["Belum", "Sudah"])
+    alamat = st.text_area("10. Alamat")
 
-    if submit_tnd:
+    c7, c8 = st.columns(2)
+    email = c7.text_input("11. email")
+    telepon = c8.text_input("12. telepon")
+
+    submit_t = st.form_submit_button("Simpan Data Tender", type="primary")
+
+    if submit_t:
       if kode_tender.strip() == "":
-        st.error("Kode Tender wajib diisi!")
+        st.error("kode_tender wajib diisi sebagai pengenal unik!")
       else:
+        combined_ket = (
+            f"[SK]:{satuan_kerja}|[JP]:{jenis_pengadaan}|[TP]:{tahapan_pengadaan}|[AL]:{alamat}"
+        )
         data_baru = {
             "id_paket": kode_tender.strip(),
             "nama_paket": nama_tender,
             "kategori": "Tender",
-            "pagu": nilai_negosiasi,
-            "hps": nilai_hps,
+            "pagu": nilai_kontrak,
+            "hps": 0.0,
             "pemenang": nama_pemenang,
             "status_kepatuhan": status_bpjs,
-            "tanggal_tarik": str(tanggal_kontrak),
-            "email_pemenang": email_pemenang,
-            "telp_pemenang": telp_pemenang,
-            "keterangan": f"Satuan Kerja: {satuan_kerja} | Jenis: {jenis_pengadaan} | Alamat: {alamat_pemenang}",
+            "tanggal_tarik": str(tanggal_selesai),
+            "email_pemenang": email,
+            "telp_pemenang": telepon,
+            "keterangan": combined_ket,
         }
         if upsert_spse_data(data_baru):
           st.success(
-              f"Data Tender dengan kode {kode_tender} berhasil disimpan ke cloud"
-              " Supabase!"
+              f"Data Tender dengan kode {kode_tender} berhasil disimpan ke"
+              " cloud Supabase!"
           )
           st.rerun()
 
 # TAB 2: EDIT & HAPUS DATA
 with tab2:
-  st.subheader("Edit atau Hapus Data Berdasarkan Kode Tender")
+  st.subheader("Edit atau Hapus Data Berdasarkan kode_tender")
   if not df_tender.empty and "id_paket" in df_tender.columns:
     df_tender["label_edit"] = (
         df_tender["id_paket"].astype(str)
@@ -101,7 +208,9 @@ with tab2:
         + df_tender["nama_paket"].fillna("")
     )
     pilihan_edit = st.selectbox(
-        "Pilih Kode Tender yang ingin dikelola:", df_tender["label_edit"].tolist()
+        "Pilih kode_tender yang ingin dikelola:",
+        df_tender["label_edit"].tolist(),
+        key="sel_edit_tender",
     )
 
     if pilihan_edit:
@@ -110,49 +219,41 @@ with tab2:
 
       if not matched_row.empty:
         r = matched_row.iloc[0]
-        st.info(f"Sedang mengelola Kode Tender: **{kode_pilih}**")
+        st.info(f"Sedang mengelola kode_tender: **{kode_pilih}**")
 
         with st.form(f"form_edit_tender_{kode_pilih}"):
           u_nama = st.text_input(
-              "Nama Paket", value=str(r.get("nama_paket", "") or "")
+              "nama_tender", value=str(r.get("nama_paket", "") or "")
           )
-          uc1, uc2 = st.columns(2)
-          u_hps = uc1.number_input(
-              "Nilai HPS (Rp)",
-              value=float(r.get("hps", 0.0) or 0.0),
-              format="%.2f",
-          )
-          u_nego = uc2.number_input(
-              "Nilai Negosiasi (Rp)",
-              value=float(r.get("pagu", 0.0) or 0.0),
-              format="%.2f",
+          u_pemenang = st.text_input(
+              "nama_pemenang", value=str(r.get("pemenang", "") or "")
           )
 
-          u_pemenang = st.text_input(
-              "Nama Pemenang", value=str(r.get("pemenang", "") or "")
+          uc1, uc2 = st.columns(2)
+          u_nilai = uc1.number_input(
+              "nilai_kontrak (Rp)",
+              value=float(r.get("pagu", 0.0) or 0.0),
+              format="%.2f",
           )
           stat_idx = (
               ["Belum", "Sudah"].index(r.get("status_kepatuhan", "Belum"))
               if r.get("status_kepatuhan") in ["Belum", "Sudah"]
               else 0
           )
-          u_bpjs = st.selectbox(
-              "Status BPJS", ["Belum", "Sudah"], index=stat_idx
+          u_bpjs = uc2.selectbox(
+              "status_kepatuhan", ["Belum", "Sudah"], index=stat_idx
           )
 
-          uc5, uc6 = st.columns(2)
-          u_email = uc5.text_input(
-              "Email Pemenang",
-              value=str(r.get("email_pemenang", "") or ""),
+          uc3, uc4 = st.columns(2)
+          u_email = uc3.text_input(
+              "email", value=str(r.get("email_pemenang", "") or "")
           )
-          u_telp = uc6.text_input(
-              "Nomor Telepon Pemenang",
-              value=str(r.get("telp_pemenang", "") or ""),
+          u_telp = uc4.text_input(
+              "telepon", value=str(r.get("telp_pemenang", "") or "")
           )
 
           u_ket = st.text_area(
-              "Keterangan / Satuan Kerja / Alamat",
-              value=str(r.get("keterangan", "") or ""),
+              "Keterangan / Atribut", value=str(r.get("keterangan", "") or "")
           )
 
           submit_update = st.form_submit_button(
@@ -164,8 +265,8 @@ with tab2:
                 "id_paket": kode_pilih,
                 "nama_paket": u_nama,
                 "kategori": "Tender",
-                "pagu": u_nego,
-                "hps": u_hps,
+                "pagu": u_nilai,
+                "hps": float(r.get("hps", 0.0) or 0.0),
                 "pemenang": u_pemenang,
                 "status_kepatuhan": u_bpjs,
                 "tanggal_tarik": str(r.get("tanggal_tarik", "")),
@@ -180,16 +281,15 @@ with tab2:
               )
               st.rerun()
 
-        # Sistem Penghapusan Paket dari Database Supabase
         st.markdown("---")
         st.warning(
             "⚠️ Ingin menghapus data paket ini dari database cloud secara"
             " permanen?"
         )
         if st.button(
-            f"🗑️️ Hapus Paket Tender ({kode_pilih})",
+            f"🗑️ Hapus Paket Tender ({kode_pilih})",
             type="secondary",
-            key=f"del_tnd_{kode_pilih}",
+            key=f"del_t_{kode_pilih}",
         ):
           try:
             supabase.table("tabel_spse_bpjs").delete().eq(
@@ -202,6 +302,37 @@ with tab2:
             st.rerun()
           except Exception as e:
             st.error(f"Gagal menghapus data: {e}")
+
+    st.markdown("---")
+    st.error("🚨 Zona Bahaya: Hapus Seluruh Data Tender")
+    with st.expander("⚠ Klik untuk opsi Hapus Semua Data Tender"):
+      st.warning(
+          "Tindakan ini akan menghapus **seluruh** data Tender dari database"
+          " cloud secara permanen dan tidak dapat dikembalikan."
+      )
+      konfirmasi_hapus_semua = st.checkbox(
+          "Saya yakin ingin menghapus seluruh data Tender",
+          key="chk_hapus_semua_t",
+      )
+      if st.button(
+          "🗑️ Hapus SEMUA Data Tender Sekarang",
+          key="btn_del_all_t",
+          type="primary",
+      ):
+        if konfirmasi_hapus_semua:
+          try:
+            supabase.table("tabel_spse_bpjs").delete().eq(
+                "kategori", "Tender"
+            ).execute()
+            st.success("Seluruh data Tender berhasil dihapus dari database cloud!")
+            st.rerun()
+          except Exception as e:
+            st.error(f"Gagal menghapus seluruh data: {e}")
+        else:
+          st.error(
+              "Mohon centang kotak konfirmasi terlebih dahulu sebelum"
+              " menghapus semua data."
+          )
   else:
     st.info("Belum ada data Tender tersimpan di cloud.")
 
@@ -210,10 +341,12 @@ with tab3:
   st.subheader("Rekapitulasi Paket Tender & Peringatan Otomatis")
   if not df_tender.empty:
 
-    # Logika Evaluasi Otomatis (Mulai H+1 Kontrak)
     def evaluasi_berdasarkan_tanggal(row):
       status = str(row.get("status_kepatuhan", "Belum")).capitalize()
-      tgl_str = str(row.get("tanggal_tarik", "")).split(" ")[0]
+      tgl_str = str(
+          row.get("tanggal_tarik", "")
+          or row.get("tanggal selesai pemilihan", "")
+      ).split(" ")[0]
 
       if status == "Sudah":
         return "✅ Selesai / Patuh"
@@ -224,62 +357,108 @@ with tab3:
 
         if selisih_hari >= 1:
           return (
-              f"🚨 URGENT: H+{selisih_hari} Kontrak (Wajib Kirim Notifikasi)"
+              f"🚨 URGENT: H+{selisih_hari} Selesai (Wajib Kirim Notifikasi)"
           )
         elif selisih_hari == 0:
-          return "⚠️ Hari H Kontrak"
+          return "⚠️ Hari H Selesai Pemilihan"
         else:
-          return "📅 Tanggal Kontrak Mendatang"
+          return "📅 Jadwal Mendatang"
       except Exception:
         return "🚨 Wajib Kirim Notifikasi (Belum Patuh)"
 
+    def extract_val(text, tag):
+      try:
+        if not text or pd.isna(text):
+          return "-"
+        text_str = str(text)
+        parts = text_str.split("|")
+        for p in parts:
+          if f"[{tag}]:" in p:
+            val = p.split(f"[{tag}]:")[1].strip()
+            return val if val and val != "None" else "-"
+        return text_str if text_str.lower() != "nan" else "-"
+      except Exception:
+        return "-"
+
     df_tampil = pd.DataFrame()
-    df_tampil["kode_tender"] = df_tender.get("id_paket", "")
-    df_tampil["nama_tender"] = df_tender.get("nama_paket", "")
 
-    df_tampil["jenis_pengadaan"] = df_tender.get("keterangan", "").apply(
-        lambda x: (
-            str(x).split("|")[1].replace("Jenis:", "").strip()
-            if "|" in str(x) and len(str(x).split("|")) > 1
-            else "-"
-        )
-    )
-    df_tampil["satuan_kerja"] = df_tender.get("keterangan", "").apply(
-        lambda x: (
-            str(x).split("|")[0].replace("Satuan Kerja:", "").strip()
-            if "|" in str(x)
-            else "-"
-        )
+    df_tampil["kode_tender"] = df_tender.get("id_paket", pd.Series()).fillna("-")
+    df_tampil["nama_tender"] = df_tender.get("nama_paket", pd.Series()).fillna(
+        "-"
     )
 
-    df_tampil["nilai_hps"] = df_tender.get("hps", 0.0)
-    df_tampil["nilai_negosiasi"] = df_tender.get("pagu", 0.0)
-    df_tampil["tanggal_kontrak"] = df_tender.get("tanggal_tarik", "")
-    df_tampil["nama_pemenang"] = df_tender.get("pemenang", "")
-
-    df_tampil["alamat_pemenang"] = df_tender.get("keterangan", "").apply(
-        lambda x: (
-            str(x).split("Alamat:")[1].strip()
-            if "Alamat:" in str(x)
-            else "-"
-        )
+    ket_series = df_tender.get("keterangan", pd.Series())
+    df_tampil["jenis_pengadaan"] = ket_series.apply(
+        lambda x: extract_val(x, "JP")
     )
-    df_tampil["email_pemenang"] = df_tender.get("email_pemenang", "")
-    df_tampil["telp_pemenang"] = df_tender.get("telp_pemenang", "")
-    df_tampil["Status"] = df_tender.get("status_kepatuhan", "Belum")
+    df_tampil["satuan_kerja"] = ket_series.apply(lambda x: extract_val(x, "SK"))
+    df_tampil["tahapan_pengadaan"] = ket_series.apply(
+        lambda x: extract_val(x, "TP")
+    )
+    df_tampil["Alamat"] = ket_series.apply(lambda x: extract_val(x, "AL"))
+
+    df_tampil["nama_pemenang"] = df_tender.get("pemenang", pd.Series()).fillna(
+        "-"
+    )
+    df_tampil["tanggal selesai pemilihan"] = df_tender.get(
+        "tanggal_tarik", pd.Series()
+    ).fillna("-")
+
+    # Format rupiah dengan titik ribuan dan koma desimal
+    raw_pagu = df_tender.get("pagu", pd.Series()).fillna(0.0)
+
+
+    def format_rupiah(val):
+      try:
+        num = float(val)
+        formatted_num = f"{num:,.2f}"
+        return (
+            "Rp "
+            + formatted_num.replace(",", "X").replace(".", ",").replace(
+                "X", "."
+            )
+        )
+      except Exception:
+        return "Rp 0,00"
+
+
+    df_tampil["nilai_kontrak"] = raw_pagu.apply(format_rupiah)
+
+    df_tampil["email"] = df_tender.get("email_pemenang", pd.Series()).fillna(
+        "-"
+    )
+    df_tampil["telepon"] = df_tender.get("telp_pemenang", pd.Series()).fillna(
+        "-"
+    )
+    df_tampil["status_kepatuhan"] = df_tender.get(
+        "status_kepatuhan", pd.Series()
+    ).fillna("Belum")
+
     df_tampil["Evaluasi_Otomatis"] = df_tender.apply(
         evaluasi_berdasarkan_tanggal, axis=1
     )
 
+    df_tampil["_sort_tahapan"] = df_tampil["tahapan_pengadaan"].apply(
+        lambda x: 0 if "Pemilihan Berlangsung" in str(x) else 1
+    )
+    df_tampil["_sort_status"] = df_tampil["status_kepatuhan"].apply(
+        lambda x: 0 if str(x).lower() == "belum" else 1
+    )
+
+    df_tampil = df_tampil.sort_values(
+        by=["_sort_tahapan", "_sort_status"], ascending=[True, True]
+    ).drop(columns=["_sort_tahapan", "_sort_status"])
+
     total_urgent = df_tampil["Evaluasi_Otomatis"].str.contains("URGENT").sum()
-    total_belum = (df_tampil["Status"].str.capitalize() == "Belum").sum()
+    total_belum = (
+        df_tampil["status_kepatuhan"].str.capitalize() == "Belum"
+    ).sum()
 
     if total_urgent > 0:
       st.error(
           f"🚨 **Peringatan Sistem:** Ditemukan **{total_urgent} paket** dari"
           f" total **{total_belum} paket** belum patuh yang sudah melewati"
-          " tanggal penandatanganan kontrak (>= H+1). **Wajib segera"
-          " dikirimi pesan notifikasi!**"
+          " jadwal (>= H+1). **Wajib segera dikirimi pesan notifikasi!**"
       )
     else:
       st.warning(
@@ -287,30 +466,7 @@ with tab3:
           " 'Belum'."
       )
 
-    st.dataframe(
-        df_tampil,
-        column_config={
-            "kode_tender": "kode_tender",
-            "nama_tender": "nama_tender",
-            "jenis_pengadaan": "jenis_pengadaan",
-            "satuan_kerja": "satuan_kerja",
-            "nilai_hps": st.column_config.NumberColumn(
-                "nilai_hps", format="Rp %.2f"
-            ),
-            "nilai_negosiasi": st.column_config.NumberColumn(
-                "nilai_negosiasi", format="Rp %.2f"
-            ),
-            "tanggal_kontrak": "tanggal_kontrak",
-            "nama_pemenang": "nama_pemenang",
-            "alamat_pemenang": "alamat_pemenang",
-            "email_pemenang": "email_pemenang",
-            "telp_pemenang": "telp_pemenang",
-            "Status": "Status",
-            "Evaluasi_Otomatis": "Status Peringatan (H+1 Kontrak)",
-        },
-        use_container_width=True,
-        hide_index=True,
-    )
+    st.dataframe(df_tampil, use_container_width=True, hide_index=True)
 
     st.markdown("---")
     st.subheader("📥 Unduh Laporan Data Tender")
@@ -324,7 +480,9 @@ with tab3:
     )
 
     st.markdown("---")
-    st.subheader("📨 Pusat Pengiriman Notifikasi (Email & WhatsApp) - Tender")
+    st.subheader(
+        "📨 Pusat Pengiriman Notifikasi (Email & WhatsApp) - Tender"
+    )
 
     with st.expander(
         "⚙️ Konfigurasi & Kirim Pesan Otomatis (Pemenang & PIC BPJS)",
@@ -334,10 +492,10 @@ with tab3:
       smtp_email = col_smtp1.text_input(
           "Email Instansi / Pengirim",
           value="admin.spse@kendarikota.go.id",
-          key="tnd_smtp_email",
+          key="t_smtp_email",
       )
       smtp_pass = col_smtp2.text_input(
-          "Password / App Password Email", type="password", key="tnd_smtp_pass"
+          "Password / App Password Email", type="password", key="t_smtp_pass"
       )
 
       st.markdown("---")
@@ -345,32 +503,34 @@ with tab3:
       email_pic = col_pic1.text_input(
           "Email PIC BPJS",
           value="pic.bpjs@kendarikota.go.id",
-          key="tnd_pic_email",
+          key="t_pic_email",
       )
       hp_pic = col_pic2.text_input(
           "No. WhatsApp PIC BPJS (628...)",
           value="6281111222233",
-          key="tnd_pic_hp",
+          key="t_pic_hp",
       )
 
-      list_opsi_tnd = (
+      list_opsi_t = (
           df_tender["id_paket"].astype(str)
           + " - "
           + df_tender["nama_paket"].fillna("")
       ).tolist()
-      pilihan_notif_tnd = st.selectbox(
-          "Pilih Kode & Nama Paket Tender:", list_opsi_tnd, key="tnd_sel_notif"
+      pilihan_notif_t = st.selectbox(
+          "Pilih kode_tender & nama_tender:",
+          list_opsi_t,
+          key="t_sel_notif",
       )
 
-      if pilihan_notif_tnd:
-        kode_pilih_tnd = pilihan_notif_tnd.split(" - ")[0]
-        matched_rows_tnd = df_tender[
-            df_tender["id_paket"].astype(str) == kode_pilih_tnd
+      if pilihan_notif_t:
+        kode_pilih_t = pilihan_notif_t.split(" - ")[0]
+        matched_rows_t = df_tender[
+            df_tender["id_paket"].astype(str) == kode_pilih_t
         ]
 
-        if not matched_rows_tnd.empty:
-          row_t = matched_rows_tnd.iloc[0]
-          pemenang = row_t.get("pemenang", "Pemenang") or "Pemenang"
+        if not matched_rows_t.empty:
+          row_t = matched_rows_t.iloc[0]
+          pemenang = row_t.get("pemenang", "Penyedia") or "Penyedia"
 
           raw_email = row_t.get("email_pemenang", "")
           email_tujuan = (
@@ -386,34 +546,33 @@ with tab3:
               else ""
           )
 
-          tgl_kontrak_val = str(row_t.get("tanggal_tarik", "-"))
+          tgl_selesai_val = str(row_t.get("tanggal_tarik", "-"))
           status_pilih = row_t.get("status_kepatuhan", "Belum")
 
           st.info(
-              f"📌 **Detail Paket Terpilih:**\n- Tanggal Kontrak:"
-              f" `{tgl_kontrak_val}`\n- Status Kepatuhan: `{status_pilih}`\n- Email"
-              f" Pemenang: `{email_tujuan if email_tujuan else 'Belum ada email terdaftar'}`\n- No."
+              f"📌 **Detail Paket Terpilih:**\n- Tanggal Selesai Pemilihan:"
+              f" `{tgl_selesai_val}`\n- Status Kepatuhan:"
+              f" `{status_pilih}`\n- Email Pemenang:"
+              f" `{email_tujuan if email_tujuan else 'Belum ada email terdaftar'}`\n- No."
               f" WhatsApp Pemenang:"
               f" `{telp_tujuan if telp_tujuan else 'Belum ada nomor WA terdaftar'}`"
           )
 
-          # Pesan untuk Pemenang
-          body_email_tnd = f"""Kepada Yth. Pimpinan {pemenang},
+          body_email_t = f"""Kepada Yth. Pimpinan {pemenang},
 
-Sehubungan dengan penandatanganan kontrak paket Tender {row_t.get('nama_paket', '')} (Kode: {kode_pilih_tnd}) pada tanggal {tgl_kontrak_val}, sesuai dengan Peraturan Walikota Kendari dan MoU antara Pemerintah Kota Kendari, Kejaksaan Negeri Kendari dan BPJS, diharapkan agar Saudara segera menunaikan kewajiban kepatuhan BPJS Ketenagakerjaan mulai hari ini (sehari setelah tanggal kontrak).
+Sehubungan dengan selesainya proses pemilihan paket Tender {row_t.get('nama_paket', '')} (kode_tender: {kode_pilih_t}) pada tanggal {tgl_selesai_val}, sesuai dengan Peraturan Walikota Kendari dan MoU antara Pemerintah Kota Kendari, Kejaksaan Negeri Kendari dan BPJS, diharapkan agar Saudara segera menunaikan kewajiban kepatuhan BPJS Ketenagakerjaan mulai hari ini (sehari setelah tanggal selesai pemilihan).
 
 Hormat kami,
 Dinas Tenaga Kerja dan Perindustrian Kota Kendari"""
 
-          wa_text_tnd = f"Halo {pemenang},\n\nSehubungan dengan penandatanganan kontrak paket Tender {row_t.get('nama_paket', '')} (Kode: {kode_pilih_tnd}) pada tanggal {tgl_kontrak_val}, sesuai dengan Peraturan Walikota Kendari dan MoU antara Pemerintah Kota Kendari, Kejaksaan Negeri Kendari dan BPJS, diharapkan agar Saudara segera menunaikan kewajiban kepatuhan BPJS Ketenagakerjaan mulai hari ini.\n\nHormat kami,\nDinas Tenaga Kerja dan Perindustrian Kota Kendari"
+          wa_text_t = f"Halo {pemenang},\n\nSehubungan dengan selesainya proses pemilihan paket Tender {row_t.get('nama_paket', '')} (kode_tender: {kode_pilih_t}) pada tanggal {tgl_selesai_val}, sesuai dengan Peraturan Walikota Kendari dan MoU antara Pemerintah Kota Kendari, Kejaksaan Negeri Kendari dan BPJS, diharapkan agar Saudara segera menunaikan kewajiban kepatuhan BPJS Ketenagakerjaan mulai hari ini.\n\nHormat kami,\nDinas Tenaga Kerja dan Perindustrian Kota Kendari"
 
-          # Pesan untuk PIC BPJS
-          body_email_pic = f"""Kepada Yth. Tim PIC BPJS,
+          body_email_pic_t = f"""Kepada Yth. Tim PIC BPJS,
 
-Berikut disampaikan monitoring kepatuhan BPJS paket Tender (aktif mulai H+1 tanggal kontrak):
-- Kode Paket: {kode_pilih_tnd}
-- Nama Paket: {row_t.get('nama_paket', '')}
-- Tanggal Kontrak: {tgl_kontrak_val}
+Berikut disampaikan monitoring kepatuhan BPJS paket Tender (aktif mulai H+1 tanggal selesai pemilihan):
+- kode_tender: {kode_pilih_t}
+- nama_tender: {row_t.get('nama_paket', '')}
+- Tanggal Selesai: {tgl_selesai_val}
 - Nama Pemenang: {pemenang}
 - Status BPJS: {status_pilih}
 
@@ -422,25 +581,25 @@ Mohon kiranya dapat diverifikasi dan ditindaklanjuti sesuai ketentuan yang berla
 Hormat kami,
 Admin SPSE Pemerintah Kota Kendari"""
 
-          wa_text_pic = f"Halo Tim PIC BPJS,\n\nBerikut monitoring kepatuhan paket Tender (aktif mulai H+1 tanggal kontrak):\n- Kode: {kode_pilih_tnd}\n- Paket: {row_t.get('nama_paket', '')}\n- Tgl Kontrak: {tgl_kontrak_val}\n- Pemenang: {pemenang}\n- Status BPJS: {status_pilih}\n\nTerima kasih."
+          wa_text_pic_t = f"Halo Tim PIC BPJS,\n\nBerikut monitoring kepatuhan paket Tender (aktif mulai H+1 selesai pemilihan):\n- kode_tender: {kode_pilih_t}\n- nama_tender: {row_t.get('nama_paket', '')}\n- Tgl Selesai: {tgl_selesai_val}\n- Pemenang: {pemenang}\n- Status BPJS: {status_pilih}\n\nTerima kasih."
 
           with st.expander("📄 Pratinjau Pesan (Pemenang & PIC BPJS)"):
             st.markdown("**1. Pesan untuk Pemenang:**")
-            st.text_area("Teks Email Pemenang:", value=body_email_tnd, height=100)
-            st.text_area("Teks WA Pemenang:", value=wa_text_tnd, height=100)
+            st.text_area("Teks Email Pemenang:", value=body_email_t, height=100)
+            st.text_area("Teks WA Pemenang:", value=wa_text_t, height=100)
             st.markdown("---")
             st.markdown("**2. Pesan untuk PIC BPJS:**")
-            st.text_area("Teks Email PIC BPJS:", value=body_email_pic, height=100)
-            st.text_area("Teks WA PIC BPJS:", value=wa_text_pic, height=100)
+            st.text_area(
+                "Teks Email PIC BPJS:", value=body_email_pic_t, height=100
+            )
+            st.text_area("Teks WA PIC BPJS:", value=wa_text_pic_t, height=100)
 
           st.markdown("### 🚀 Aksi Pengiriman Pesan")
           col_a1, col_a2 = st.columns(2)
 
           with col_a1:
             st.markdown("#### Kirim ke Pemenang")
-            if st.button(
-                "📧 Kirim Email ke Pemenang", key="btn_send_email_tnd"
-            ):
+            if st.button("📧 Kirim Email ke Pemenang", key="btn_send_email_t"):
               if not email_tujuan or "@" not in email_tujuan:
                 st.error("Email pemenang belum valid atau kosong!")
               else:
@@ -449,9 +608,9 @@ Admin SPSE Pemerintah Kota Kendari"""
                   msg["From"] = smtp_email
                   msg["To"] = email_tujuan
                   msg["Subject"] = (
-                      f"Pemberitahuan Kepatuhan BPJS - Paket Tender {kode_pilih_tnd}"
+                      f"Pemberitahuan Kepatuhan BPJS - Tender {kode_pilih_t}"
                   )
-                  msg.attach(MIMEText(body_email_tnd, "plain"))
+                  msg.attach(MIMEText(body_email_t, "plain"))
 
                   server = smtplib.SMTP("smtp.gmail.com", 587)
                   server.starttls()
@@ -467,7 +626,7 @@ Admin SPSE Pemerintah Kota Kendari"""
                   )
 
             if telp_tujuan:
-              encoded_wa = urllib.parse.quote(wa_text_tnd)
+              encoded_wa = urllib.parse.quote(wa_text_t)
               wa_url = f"https://wa.me/{telp_tujuan}?text={encoded_wa}"
               st.markdown(
                   f'<a href="{wa_url}" target="_blank"><button'
@@ -483,7 +642,7 @@ Admin SPSE Pemerintah Kota Kendari"""
           with col_a2:
             st.markdown("#### Kirim ke PIC BPJS")
             if st.button(
-                "📧 Kirim Email ke PIC BPJS", key="btn_send_email_pic_tnd"
+                "📧 Kirim Email ke PIC BPJS", key="btn_send_email_pic_t"
             ):
               if not email_pic or "@" not in email_pic:
                 st.error("Email PIC BPJS belum valid atau kosong!")
@@ -493,9 +652,9 @@ Admin SPSE Pemerintah Kota Kendari"""
                   msg_pic["From"] = smtp_email
                   msg_pic["To"] = email_pic
                   msg_pic["Subject"] = (
-                      f"Laporan Kepatuhan BPJS Tender - {kode_pilih_tnd}"
+                      f"Laporan Kepatuhan BPJS Tender - {kode_pilih_t}"
                   )
-                  msg_pic.attach(MIMEText(body_email_pic, "plain"))
+                  msg_pic.attach(MIMEText(body_email_pic_t, "plain"))
 
                   server = smtplib.SMTP("smtp.gmail.com", 587)
                   server.starttls()
@@ -512,7 +671,7 @@ Admin SPSE Pemerintah Kota Kendari"""
                   )
 
             if hp_pic:
-              encoded_wa_pic = urllib.parse.quote(wa_text_pic)
+              encoded_wa_pic = urllib.parse.quote(wa_text_pic_t)
               wa_url_pic = f"https://wa.me/{hp_pic}?text={encoded_wa_pic}"
               st.markdown(
                   f'<a href="{wa_url_pic}" target="_blank"><button'
@@ -525,4 +684,4 @@ Admin SPSE Pemerintah Kota Kendari"""
             else:
               st.warning("Nomor WhatsApp PIC BPJS belum diisi.")
   else:
-    st.info("Belum ada data Tender tersimpan di database cloud.")
+    st.info("Belum ada data Tender tersimpan di cloud.")
