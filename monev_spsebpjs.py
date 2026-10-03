@@ -1,9 +1,8 @@
-import sqlite3
 import pandas as pd
 import streamlit as st
 
-# Import fungsi sinkronisasi dari modul eksternal api_connector.py
-from api_connector import sinkronisasi_database_spse
+# Import fungsi dari api_connector.py
+from api_connector import get_all_spse_data, sinkronisasi_database_spse
 
 # Konfigurasi Halaman Utama
 st.set_page_config(
@@ -43,33 +42,21 @@ st.markdown(
 )
 st.markdown("---")
 
-# Koneksi ke database lokal
-DB_PATH = "database_spse.db"
-conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+# Ambil seluruh data dari Supabase Cloud melalui api_connector
+df_all = get_all_spse_data()
+
+# Hitung jumlah data berdasarkan kategori
+if not df_all.empty and "kategori" in df_all.columns:
+  df_t_count = len(df_all[df_all["kategori"].str.lower() == "tender"])
+  df_nt_count = len(df_all[df_all["kategori"].str.lower() == "non-tender"])
+  df_ep_count = len(df_all[df_all["kategori"].str.lower() == "e-purchasing"])
+else:
+  df_t_count = 0
+  df_nt_count = 0
+  df_ep_count = 0
 
 # Informasi Ringkas / Statistik Singkat
 col_s1, col_s2, col_s3 = st.columns(3)
-try:
-  df_t_count = pd.read_sql_query(
-      "SELECT COUNT(*) as total FROM tabel_tender", conn
-  ).iloc[0]["total"]
-except:
-  df_t_count = 0
-
-try:
-  df_nt_count = pd.read_sql_query(
-      "SELECT COUNT(*) as total FROM tabel_nontender", conn
-  ).iloc[0]["total"]
-except:
-  df_nt_count = 0
-
-try:
-  df_ep_count = pd.read_sql_query(
-      "SELECT COUNT(*) as total FROM tabel_epurchasing", conn
-  ).iloc[0]["total"]
-except:
-  df_ep_count = 0
-
 col_s1.metric("Total Paket Tender", f"{df_t_count} Paket")
 col_s2.metric("Total Paket Non-Tender", f"{df_nt_count} Paket")
 col_s3.metric("Total Paket E-Purchasing", f"{df_ep_count} Paket")
@@ -82,7 +69,7 @@ st.markdown("---")
 st.subheader("🔄 Sinkronisasi Data Otomatis via API SPSE")
 st.markdown(
     "Gunakan tombol di bawah untuk menarik pembaruan data paket pengadaan"
-    " terbaru langsung dari server SPSE / API Eksternal."
+    " terbaru langsung dari server SPSE / API Eksternal ke Supabase Cloud."
 )
 
 if st.button(
@@ -97,9 +84,8 @@ if st.button(
     if jumlah_data > 0:
       st.success(
           f"✅ Berhasil! Sinkronisasi selesai. Sebanyak **{jumlah_data} data paket**"
-          " berhasil diperbarui ke database lokal."
+          " berhasil diperbarui ke database cloud."
       )
-      # Simpan status sukses di session_state agar tombol unduh tetap tampil
       st.session_state["sync_success"] = True
     else:
       st.warning(
@@ -108,26 +94,17 @@ if st.button(
       st.session_state["sync_success"] = False
 
 # =========================================================
-# KONTROL TOMBOL UNDUH INSTAN (FORMAT CSV - BERSIH TANPA STATUS BPJS)
+# KONTROL TOMBOL UNDUH INSTAN (FORMAT CSV)
 # =========================================================
 if st.session_state.get("sync_success", False):
   st.markdown("---")
   st.info("📥 Arsip data hasil tarikan API terbaru siap diunduh.")
 
   try:
-    # Mengambil gabungan data murni dari database tanpa menyertakan status_bpjs
-    query_gabungan = """
-        SELECT 'Tender' as kategori, kode_tender as kode_paket, nama_paket, jenis_pengadaan, satuan_kerja, nilai_pagu as nilai FROM tabel_tender
-        UNION ALL
-        SELECT 'Non-Tender' as kategori, kode_nontender as kode_paket, nama_nontender as nama_paket, jenis_pengadaan, satuan_kerja, nilai_hps as nilai FROM tabel_nontender
-    """
-    df_hasil_tarikan = pd.read_sql_query(query_gabungan, conn)
+    df_fresh = get_all_spse_data()
+    if not df_fresh.empty:
+      csv_data = df_fresh.to_csv(index=False).encode("utf-8")
 
-    if not df_hasil_tarikan.empty:
-      # Ubah DataFrame ke format CSV murni
-      csv_data = df_hasil_tarikan.to_csv(index=False).encode("utf-8")
-
-      # Tombol unduh instan
       st.download_button(
           label="📥 Unduh Hasil Tarikan API ke Format CSV (.csv)",
           data=csv_data,
