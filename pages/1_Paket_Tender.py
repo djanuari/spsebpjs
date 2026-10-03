@@ -40,8 +40,8 @@ tahapan_opsi = ["Pemilihan Berlangsung", "Pemilihan Selesai"]
 with tab_import:
   st.subheader("📤 Unggah File Excel Rujukan Tender")
   st.info(
-      "Unggah file Excel Anda di sini. Sistem akan mencocokkan kolom"
-      " 'nilai_kontrak' dan 'nama_pemenang' secara akurat."
+      "Unggah file Excel Anda di sini. Sistem akan membaca kolom nilai_kontrak"
+      " dan nama_pemenang secara presisi ke database."
   )
 
   uploaded_excel = st.file_uploader(
@@ -79,7 +79,7 @@ with tab_import:
                 f"[SK]:{satuan_kerja}|[JP]:{jenis_pengadaan}|[TP]:{tahapan_pengadaan}|[AL]:{alamat}"
             )
 
-            # AMBIL NILAI KONTRAK SECARA FLEKSIBEL DARI BERBAGAI NAMA KOLOM
+            # AMBIL NILAI KONTRAK DARI EXCEL
             val_nilai = 0.0
             for col_n in ["nilai_kontrak", "total_nilai", "pagu", "nilai_pagu"]:
               if col_n in row and pd.notna(row[col_n]):
@@ -101,7 +101,7 @@ with tab_import:
                 except Exception:
                   pass
 
-            # AMBIL NAMA PEMENANG SECARA FLEKSIBEL DARI BERBAGAI NAMA KOLOM
+            # AMBIL NAMA PEMENANG DARI EXCEL
             val_pemenang = "-"
             for col_p in [
                 "nama_pemenang",
@@ -123,7 +123,7 @@ with tab_import:
                 "id_paket": kode,
                 "nama_paket": str(row.get("nama_tender", "") or "-"),
                 "kategori": "Tender",
-                "pagu": val_nilai,  # Disimpan ke kolom 'pagu' di database Supabase
+                "pagu": val_nilai,  # Disimpan ke kolom 'pagu' di Supabase
                 "hps": 0.0,
                 "pemenang": val_pemenang,
                 "status_kepatuhan": str(
