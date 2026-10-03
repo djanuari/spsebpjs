@@ -282,32 +282,6 @@ with tab3:
           " tanggal penandatanganan kontrak (>= H+1). **Wajib segera"
           " dikirimi pesan notifikasi!**"
       )
-
-      # --- TOMBOL AKSI CEPAT DI BAWAH PERINGATAN ---
-      with st.expander(
-          "⚡ Pintasan Aksi Cepat: Kirim Pesan Paket URGENT", expanded=True
-      ):
-        df_urgent_list = df_nontender[
-            df_nontender.apply(
-                lambda row: (
-                    "URGENT" in evaluasi_berdasarkan_tanggal(row).upper()
-                ),
-                axis=1,
-            )
-        ]
-        if not df_urgent_list.empty:
-          pilihan_cepat = st.selectbox(
-              "Pilih Paket URGENT yang ingin langsung diproses:",
-              (
-                  df_urgent_list["id_paket"].astype(str)
-                  + " - "
-                  + df_urgent_list["nama_paket"].fillna("")
-              ).tolist(),
-              key="quick_action_select",
-          )
-          if pilihan_cepat:
-            # Simpan pilihan ke session_state agar langsung terpilih di bawah
-            st.session_state["nt_sel_notif"] = pilihan_cepat
     else:
       st.warning(
           f"⚠️ Ada **{total_belum} paket** yang status kepatuhannya masih"
@@ -387,18 +361,8 @@ with tab3:
           + " - "
           + df_nontender["nama_paket"].fillna("")
       ).tolist()
-
-      # Menyesuaikan indeks default jika tombol cepat dipilih
-      default_index = 0
-      current_selected = st.session_state.get("nt_sel_notif")
-      if current_selected in list_opsi_nt:
-        default_index = list_opsi_nt.index(current_selected)
-
       pilihan_notif_nt = st.selectbox(
-          "Pilih Kode & Nama Paket Non-Tender:",
-          list_opsi_nt,
-          index=default_index,
-          key="nt_sel_notif",
+          "Pilih Kode & Nama Paket Non-Tender:", list_opsi_nt, key="nt_sel_notif"
       )
 
       if pilihan_notif_nt:
