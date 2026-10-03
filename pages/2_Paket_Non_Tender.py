@@ -76,15 +76,18 @@ with tab1:
             "id_paket": kode_nontender.strip(),
             "nama_paket": nama_nontender,
             "kategori": "Non-Tender",
-            "pagu": nilai_kontrak,  # Menyimpan nilai kontrak secara langsung
+            "pagu": nilai_kontrak,
             "hps": 0.0,
             "pemenang": nama_pemenang,
             "status_kepatuhan": status_bpjs,
             "tanggal_tarik": str(tanggal_selesai),
             "email_pemenang": email,
             "telp_pemenang": telepon,
-            # Menyimpan atribut secara rapi untuk dipetakan kembali ke tabel laporan
-            "keterangan": f"SatuanKerja: {satuan_kerja} || JenisPengadaan: {jenis_pengadaan} || Tahapan: {tahapan_pengadaan} || Alamat: {alamat}",
+            "keterangan": (
+                f"SatuanKerja: {satuan_kerja} || JenisPengadaan:"
+                f" {jenis_pengadaan} || Tahapan: {tahapan_pengadaan} || Alamat:"
+                f" {alamat}"
+            ),
         }
         if upsert_spse_data(data_baru):
           st.success(
@@ -182,7 +185,7 @@ with tab2:
             " permanen?"
         )
         if st.button(
-            f"🗑️️ Hapus Paket Non-Tender ({kode_pilih})",
+            f"🗑️ Hapus Paket Non-Tender ({kode_pilih})",
             type="secondary",
             key=f"del_nt_{kode_pilih}",
         ):
@@ -210,7 +213,7 @@ with tab2:
           key="chk_hapus_semua_nt",
       )
       if st.button(
-          "🗑️️ Hapus SEMUA Data Non-Tender Sekarang", type="primary"
+          "🗑️ Hapus SEMUA Data Non-Tender Sekarang", type="primary"
       ):
         if konfirmasi_hapus_semua:
           try:
@@ -262,16 +265,15 @@ with tab3:
       try:
         if not text or key not in str(text):
           return "-"
-        parts = str(text).split("||")
-        for p in parts:
-          if key in p:
-            val = p.split(key)[1].strip()
-            return val if val else "-"
-        parts_single = str(text).split("|")
-        for p in parts_single:
-          if key in p:
-            val = p.split(key)[1].strip()
-            return val if val else "-"
+        # Pisahkan berdasarkan pemisah ganda || atau tunggal |
+        for sep in ["||", "|"]:
+          if sep in str(text):
+            parts = str(text).split(sep)
+            for p in parts:
+              if key in p:
+                val = p.split(key)[1].strip()
+                if val:
+                  return val
         return "-"
       except Exception:
         return "-"
@@ -375,7 +377,7 @@ with tab3:
     )
 
     with st.expander(
-        "⚙️️ Konfigurasi & Kirim Pesan Otomatis (Pemenang & PIC BPJS)",
+        "⚙️ Konfigurasi & Kirim Pesan Otomatis (Pemenang & PIC BPJS)",
         expanded=True,
     ):
       col_smtp1, col_smtp2 = st.columns(2)
@@ -407,7 +409,9 @@ with tab3:
           + df_nontender["nama_paket"].fillna("")
       ).tolist()
       pilihan_notif_nt = st.selectbox(
-          "Pilih Kode & Nama Paket Non-Tender:", list_opsi_nt, key="nt_sel_notif"
+          "Pilih kode_nontender & nama_nontender:",
+          list_opsi_nt,
+          key="nt_sel_notif",
       )
 
       if pilihan_notif_nt:
@@ -448,18 +452,18 @@ with tab3:
 
           body_email_nt = f"""Kepada Yth. Pimpinan {pemenang},
 
-Sehubungan dengan selesainya proses pemilihan paket Non-Tender {row_n.get('nama_paket', '')} (Kode Paket: {kode_pilih_nt}) pada tanggal {tgl_selesai_val}, sesuai dengan Peraturan Walikota Kendari dan MoU antara Pemerintah Kota Kendari, Kejaksaan Negeri Kendari dan BPJS, diharapkan agar Saudara segera menunaikan kewajiban kepatuhan BPJS Ketenagakerjaan mulai hari ini (sehari setelah tanggal selesai pemilihan).
+Sehubungan dengan selesainya proses pemilihan paket Non-Tender {row_n.get('nama_paket', '')} (kode_nontender: {kode_pilih_nt}) pada tanggal {tgl_selesai_val}, sesuai dengan Peraturan Walikota Kendari dan MoU antara Pemerintah Kota Kendari, Kejaksaan Negeri Kendari dan BPJS, diharapkan agar Saudara segera menunaikan kewajiban kepatuhan BPJS Ketenagakerjaan mulai hari ini (sehari setelah tanggal selesai pemilihan).
 
 Hormat kami,
 Dinas Tenaga Kerja dan Perindustrian Kota Kendari"""
 
-          wa_text_nt = f"Halo {pemenang},\n\nSehubungan dengan selesainya proses pemilihan paket Non-Tender {row_n.get('nama_paket', '')} (Kode Paket: {kode_pilih_nt}) pada tanggal {tgl_selesai_val}, sesuai dengan Peraturan Walikota Kendari dan MoU antara Pemerintah Kota Kendari, Kejaksaan Negeri Kendari dan BPJS, diharapkan agar Saudara segera menunaikan kewajiban kepatuhan BPJS Ketenagakerjaan mulai hari ini.\n\nHormat kami,\nDinas Tenaga Kerja dan Perindustrian Kota Kendari"
+          wa_text_nt = f"Halo {pemenang},\n\nSehubungan dengan selesainya proses pemilihan paket Non-Tender {row_n.get('nama_paket', '')} (kode_nontender: {kode_pilih_nt}) pada tanggal {tgl_selesai_val}, sesuai dengan Peraturan Walikota Kendari dan MoU antara Pemerintah Kota Kendari, Kejaksaan Negeri Kendari dan BPJS, diharapkan agar Saudara segera menunaikan kewajiban kepatuhan BPJS Ketenagakerjaan mulai hari ini.\n\nHormat kami,\nDinas Tenaga Kerja dan Perindustrian Kota Kendari"
 
           body_email_pic = f"""Kepada Yth. Tim PIC BPJS,
 
 Berikut disampaikan monitoring kepatuhan BPJS paket Non-Tender (aktif mulai H+1 tanggal selesai pemilihan):
-- Kode Paket: {kode_pilih_nt}
-- Nama Paket: {row_n.get('nama_paket', '')}
+- kode_nontender: {kode_pilih_nt}
+- nama_nontender: {row_n.get('nama_paket', '')}
 - Tanggal Selesai: {tgl_selesai_val}
 - Nama Pemenang: {pemenang}
 - Status BPJS: {status_pilih}
@@ -469,7 +473,7 @@ Mohon kiranya dapat diverifikasi dan ditindaklanjuti sesuai ketentuan yang berla
 Hormat kami,
 Admin SPSE Pemerintah Kota Kendari"""
 
-          wa_text_pic = f"Halo Tim PIC BPJS,\n\nBerikut monitoring kepatuhan paket Non-Tender (aktif mulai H+1 selesai pemilihan):\n- Kode Paket: {kode_pilih_nt}\n- Paket: {row_n.get('nama_paket', '')}\n- Tgl Selesai: {tgl_selesai_val}\n- Pemenang: {pemenang}\n- Status BPJS: {status_pilih}\n\nTerima kasih."
+          wa_text_pic = f"Halo Tim PIC BPJS,\n\nBerikut monitoring kepatuhan paket Non-Tender (aktif mulai H+1 selesai pemilihan):\n- kode_nontender: {kode_pilih_nt}\n- nama_nontender: {row_n.get('nama_paket', '')}\n- Tgl Selesai: {tgl_selesai_val}\n- Pemenang: {pemenang}\n- Status BPJS: {status_pilih}\n\nTerima kasih."
 
           with st.expander("📄 Pratinjau Pesan (Pemenang & PIC BPJS)"):
             st.markdown("**1. Pesan untuk Pemenang:**")
