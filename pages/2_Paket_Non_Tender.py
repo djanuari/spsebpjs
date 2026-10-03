@@ -68,19 +68,19 @@ with tab1:
       if kode_nontender.strip() == "":
         st.error("Kode Non-Tender wajib diisi!")
       else:
-        # Pemetaan ke kolom tabel Supabase tanpa merubah strukturnya
+        # Pemetaan data ke kolom Supabase tanpa mengubah struktur database asli
         data_baru = {
             "id_paket": kode_nontender.strip(),
             "nama_paket": nama_nontender,
             "kategori": "Non-Tender",
-            "pagu": nilai_hps,
+            "pagu": nilai_negosiasi,
             "hps": nilai_hps,
             "pemenang": nama_pemenang,
             "status_kepatuhan": status_bpjs,
             "tanggal_tarik": str(tanggal_kontrak),
             "email_pemenang": email_pemenang,
             "telp_pemenang": telp_pemenang,
-            "keterangan": f"Satuan Kerja: {satuan_kerja} | Jenis: {jenis_pengadaan} | Nego: Rp {nilai_negosiasi:,.2f} | Alamat: {alamat_pemenang}",
+            "keterangan": f"Satuan Kerja: {satuan_kerja} | Jenis: {jenis_pengadaan} | Alamat: {alamat_pemenang}",
         }
         if upsert_spse_data(data_baru):
           st.success(
@@ -121,8 +121,8 @@ with tab2:
               value=float(r.get("hps", 0.0) or 0.0),
               format="%.2f",
           )
-          u_pagu = uc2.number_input(
-              "Nilai Pagu (Rp)",
+          u_nego = uc2.number_input(
+              "Nilai Negosiasi (Rp)",
               value=float(r.get("pagu", 0.0) or 0.0),
               format="%.2f",
           )
@@ -150,7 +150,7 @@ with tab2:
           )
 
           u_ket = st.text_area(
-              "Keterangan / Satuan Kerja",
+              "Keterangan / Satuan Kerja / Alamat",
               value=str(r.get("keterangan", "") or ""),
           )
 
@@ -163,7 +163,7 @@ with tab2:
                 "id_paket": kode_pilih,
                 "nama_paket": u_nama,
                 "kategori": "Non-Tender",
-                "pagu": u_pagu,
+                "pagu": u_nego,
                 "hps": u_hps,
                 "pemenang": u_pemenang,
                 "status_kepatuhan": u_bpjs,
@@ -204,11 +204,69 @@ with tab2:
 with tab3:
   st.subheader("Rekapitulasi Paket Non-Tender & Peringatan Otomatis")
   if not df_nontender.empty:
-    st.dataframe(df_nontender, use_container_width=True, hide_index=True)
+    # Memetakan kolom database Supabase ke format tabel tampilan yang diinginkan
+    df_tampil = pd.DataFrame()
+    df_tampil["kode_nontender"] = df_nontender.get("id_paket", "")
+    df_tampil["nama_nontender"] = df_nontender.get("nama_paket", "")
+
+    df_tampil["jenis_pengadaan"] = df_nontender.get("keterangan", "").apply(
+        lambda x: (
+            str(x).split("|")[1].replace("Jenis:", "").strip()
+            if "|" in str(x) and len(str(x).split("|")) > 1
+            else "-"
+        )
+    )
+    df_tampil["satuan_kerja"] = df_nontender.get("keterangan", "").apply(
+        lambda x: (
+            str(x).split("|")[0].replace("Satuan Kerja:", "").strip()
+            if "|" in str(x)
+            else "-"
+        )
+    )
+
+    df_tampil["nilai_hps"] = df_nontender.get("hps", 0.0)
+    df_tampil["nilai_negosiasi"] = df_nontender.get("pagu", 0.0)
+    df_tampil["tanggal_kontrak"] = df_nontender.get("tanggal_tarik", "")
+    df_tampil["nama_pemenang"] = df_nontender.get("pemenang", "")
+
+    df_tampil["alamat_pemenang"] = df_nontender.get("keterangan", "").apply(
+        lambda x: (
+            str(x).split("Alamat:")[1].strip()
+            if "Alamat:" in str(x)
+            else "-"
+        )
+    )
+    df_tampil["email_pemenang"] = df_nontender.get("email_pemenang", "")
+    df_tampil["telp_pemenang"] = df_nontender.get("telp_pemenang", "")
+    df_tampil["Status"] = df_nontender.get("status_kepatuhan", "Belum")
+
+    st.dataframe(
+        df_tampil,
+        column_config={
+            "kode_nontender": "kode_nontender",
+            "nama_nontender": "nama_nontender",
+            "jenis_pengadaan": "jenis_pengadaan",
+            "satuan_kerja": "satuan_kerja",
+            "nilai_hps": st.column_config.NumberColumn(
+                "nilai_hps", format="Rp %.2f"
+            ),
+            "nilai_negosiasi": st.column_config.NumberColumn(
+                "nilai_negosiasi", format="Rp %.2f"
+            ),
+            "tanggal_kontrak": "tanggal_kontrak",
+            "nama_pemenang": "nama_pemenang",
+            "alamat_pemenang": "alamat_pemenang",
+            "email_pemenang": "email_pemenang",
+            "telp_pemenang": "telp_pemenang",
+            "Status": "Status",
+        },
+        use_container_width=True,
+        hide_index=True,
+    )
 
     st.markdown("---")
     st.subheader("📥 Unduh Laporan Data Non-Tender")
-    csv_data = df_nontender.to_csv(index=False).encode("utf-8")
+    csv_data = df_tampil.to_csv(index=False).encode("utf-8")
     st.download_button(
         label="📥 Unduh Laporan Non-Tender ke Format CSV (.csv)",
         data=csv_data,
