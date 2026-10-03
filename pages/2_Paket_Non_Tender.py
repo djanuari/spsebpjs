@@ -198,10 +198,10 @@ with tab2:
           except Exception as e:
             st.error(f"Gagal menghapus data: {e}")
 
-    # --- FITUR HAPUS SEMUA DATA NON-TENDER ---
+    # --- HAPUS SEMUA DATA NON-TENDER ---
     st.markdown("---")
     st.error("🚨 Zona Bahaya: Hapus Seluruh Data Non-Tender")
-    with st.expander("⚠️️ Klik untuk opsi Hapus Semua Data Non-Tender"):
+    with st.expander("⚠ Klik untuk opsi Hapus Semua Data Non-Tender"):
       st.warning(
           "Tindakan ini akan menghapus **seluruh** data Non-Tender dari"
           " database cloud secara permanen dan tidak dapat dikembalikan."
@@ -261,34 +261,35 @@ with tab3:
         return "🚨 Wajib Kirim Notifikasi (Belum Patuh)"
 
     df_tampil = pd.DataFrame()
-    df_tampil["kode_paket"] = df_nontender.get("id_paket", "")
-    df_tampil["nama_paket"] = df_nontender.get("nama_paket", "")
-    df_tampil["jenis_pengadaan"] = df_nontender.get("keterangan", "").apply(
+    # Menyesuaikan nama kolom agar persis dengan formulir input di Tab 1
+    df_tampil["Kode Paket"] = df_nontender.get("id_paket", "")
+    df_tampil["Nama Paket"] = df_nontender.get("nama_paket", "")
+    df_tampil["Jenis Pengadaan"] = df_nontender.get("keterangan", "").apply(
         lambda x: (
             str(x).split("Jenis:")[1].split("|")[0].strip()
             if "Jenis:" in str(x)
             else "-"
         )
     )
-    df_tampil["satuan_kerja"] = df_nontender.get("keterangan", "").apply(
+    df_tampil["Satuan Kerja"] = df_nontender.get("keterangan", "").apply(
         lambda x: (
             str(x).split("Satuan Kerja:")[1].split("|")[0].strip()
             if "Satuan Kerja:" in str(x)
             else "-"
         )
     )
-    df_tampil["tahapan_pengadaan"] = df_nontender.get("keterangan", "").apply(
+    df_tampil["Tahapan Pengadaan"] = df_nontender.get("keterangan", "").apply(
         lambda x: (
             str(x).split("Tahapan:")[1].split("|")[0].strip()
             if "Tahapan:" in str(x)
             else "-"
         )
     )
-    df_tampil["nama_pemenang"] = df_nontender.get("pemenang", "")
-    df_tampil["tanggal selesai pemilihan"] = df_nontender.get(
+    df_tampil["Nama Pemenang"] = df_nontender.get("pemenang", "")
+    df_tampil["Tanggal Selesai Pemilihan / Kontrak"] = df_nontender.get(
         "tanggal_tarik", ""
     )
-    df_tampil["nilai_kontrak"] = df_nontender.get("pagu", 0.0)
+    df_tampil["Nilai Kontrak"] = df_nontender.get("pagu", 0.0)
     df_tampil["Alamat"] = df_nontender.get("keterangan", "").apply(
         lambda x: (
             str(x).split("Alamat:")[1].strip()
@@ -296,20 +297,22 @@ with tab3:
             else "-"
         )
     )
-    df_tampil["email"] = df_nontender.get("email_pemenang", "")
-    df_tampil["telepon"] = df_nontender.get("telp_pemenang", "")
-    df_tampil["status_kepatuhan"] = df_nontender.get("status_kepatuhan", "Belum")
+    df_tampil["Email"] = df_nontender.get("email_pemenang", "")
+    df_tampil["Telepon"] = df_nontender.get("telp_pemenang", "")
+    df_tampil["Status Kepatuhan BPJS"] = df_nontender.get(
+        "status_kepatuhan", "Belum"
+    )
     df_tampil["Evaluasi_Otomatis"] = df_nontender.apply(
         evaluasi_berdasarkan_tanggal, axis=1
     )
 
     # --- PENGURUTAN (SORTING) SESUAI PERMINTAAN ---
     # 1. Tahapan Pengadaan: "Pemilihan Berlangsung" di posisi atas
-    # 2. Status Kepatuhan: "Belum" di posisi atas
-    df_tampil["_sort_tahapan"] = df_tampil["tahapan_pengadaan"].apply(
+    # 2. Status Kepatuhan BPJS: "Belum" di posisi atas
+    df_tampil["_sort_tahapan"] = df_tampil["Tahapan Pengadaan"].apply(
         lambda x: 0 if "Pemilihan Berlangsung" in str(x) else 1
     )
-    df_tampil["_sort_status"] = df_tampil["status_kepatuhan"].apply(
+    df_tampil["_sort_status"] = df_tampil["Status Kepatuhan BPJS"].apply(
         lambda x: 0 if str(x).lower() == "belum" else 1
     )
 
@@ -319,7 +322,7 @@ with tab3:
 
     total_urgent = df_tampil["Evaluasi_Otomatis"].str.contains("URGENT").sum()
     total_belum = (
-        df_tampil["status_kepatuhan"].str.capitalize() == "Belum"
+        df_tampil["Status Kepatuhan BPJS"].str.capitalize() == "Belum"
     ).sum()
 
     if total_urgent > 0:
@@ -337,20 +340,22 @@ with tab3:
     st.dataframe(
         df_tampil,
         column_config={
-            "kode_paket": "kode_paket",
-            "nama_paket": "nama_paket",
-            "jenis_pengadaan": "jenis_pengadaan",
-            "satuan_kerja": "satuan_kerja",
-            "tahapan_pengadaan": "tahapan_pengadaan",
-            "nama_pemenang": "nama_pemenang",
-            "tanggal selesai pemilihan": "tanggal selesai pemilihan",
-            "nilai_kontrak": st.column_config.NumberColumn(
-                "nilai_kontrak", format="Rp %.2f"
+            "Kode Paket": "Kode Paket",
+            "Nama Paket": "Nama Paket",
+            "Jenis Pengadaan": "Jenis Pengadaan",
+            "Satuan Kerja": "Satuan Kerja",
+            "Tahapan Pengadaan": "Tahapan Pengadaan",
+            "Nama Pemenang": "Nama Pemenang",
+            "Tanggal Selesai Pemilihan / Kontrak": (
+                "Tanggal Selesai Pemilihan / Kontrak"
+            ),
+            "Nilai Kontrak": st.column_config.NumberColumn(
+                "Nilai Kontrak", format="Rp %.2f"
             ),
             "Alamat": "Alamat",
-            "email": "email",
-            "telepon": "telepon",
-            "status_kepatuhan": "status_kepatuhan",
+            "Email": "Email",
+            "Telepon": "Telepon",
+            "Status Kepatuhan BPJS": "Status Kepatuhan BPJS",
             "Evaluasi_Otomatis": "Status Peringatan (H+1)",
         },
         use_container_width=True,
