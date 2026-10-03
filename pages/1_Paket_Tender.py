@@ -36,13 +36,13 @@ jenis_pengadaan_opsi = [
 
 tahapan_opsi = ["Pemilihan Berlangsung", "Pemilihan Selesai"]
 
-# TAB IMPORT EXCEL: Menyinkronkan seluruh kolom secara presisi
+# TAB IMPORT EXCEL: Pemetaan kolom yang akurat untuk Tender
 with tab_import:
   st.subheader("📤 Unggah File Excel Rujukan Tender")
   st.info(
-      "Unggah file Excel Anda di sini. Sistem akan otomatis memetakan"
-      " `nama_pemenang`, `nilai_kontrak`, `satuan_kerja`, `jenis_pengadaan`,"
-      " dan atribut lainnya secara presisi ke database."
+      "Unggah file Excel Anda di sini. Sistem akan otomatis menyinkronkan"
+      " seluruh data termasuk nama pemenang, nilai kontrak, satuan kerja, dan"
+      " tahapan ke database."
   )
 
   uploaded_excel = st.file_uploader(
@@ -65,6 +65,7 @@ with tab_import:
         success_count = 0
         with st.spinner("Sedang menyinkronkan data Tender ke Supabase..."):
           for _, row in df_import.iterrows():
+            # Mendapatkan kode paket secara fleksibel
             kode = str(
                 row.get("kode_tender", "")
                 or row.get("kode_nontender", "")
@@ -84,6 +85,35 @@ with tab_import:
                 f"[SK]:{satuan_kerja}|[JP]:{jenis_pengadaan}|[TP]:{tahapan_pengadaan}|[AL]:{alamat}"
             )
 
+            # Membaca nilai kontrak / pagu dengan aman
+            val_pagu = 0.0
+            for col_p in [
+                "nilai_kontrak",
+                "pagu",
+                "nilai_pagu",
+                "hps",
+                "nilai_hps",
+            ]:
+              if col_p in row and pd.notna(row[col_p]):
+                try:
+                  val_pagu = float(row[col_p])
+                  break
+                except Exception:
+                  pass
+
+            # Membaca nama pemenang secara fleksibel
+            val_pemenang = ""
+            for col_pem in [
+                "nama_pemenang",
+                "pemenang",
+                "penyedia",
+                "nama_penyedia",
+            ]:
+              if col_pem in row and pd.notna(row[col_pem]):
+                val_pemenang = str(row[col_pem]).strip()
+                if val_pemenang and val_pemenang.lower() != "nan":
+                  break
+
             data_row = {
                 "id_paket": kode.strip(),
                 "nama_paket": str(
@@ -93,17 +123,9 @@ with tab_import:
                     or ""
                 ),
                 "kategori": "Tender",
-                "pagu": float(
-                    row.get("nilai_kontrak", 0.0)
-                    or row.get("pagu", 0.0)
-                    or 0.0
-                ),
-                "hps": float(row.get("hps", 0.0) or 0.0),
-                "pemenang": str(
-                    row.get("nama_pemenang", "")
-                    or row.get("pemenang", "")
-                    or ""
-                ),
+                "pagu": val_pagu,
+                "hps": 0.0,
+                "pemenang": val_pemenang,
                 "status_kepatuhan": str(
                     row.get("status_kepatuhan", "Belum") or "Belum"
                 ),
@@ -398,15 +420,19 @@ with tab3:
     )
     df_tampil["Alamat"] = ket_series.apply(lambda x: extract_val(x, "AL"))
 
-    # Memastikan nama pemenang diambil langsung dari kolom database 'pemenang'
+    # Mengambil langsung dari kolom 'pemenang' di Supabase
+    raw_pemenang = df_tender.get("pemenang", pd.Series())
     df_tampil["nama_pemenang"] = (
-        df_tender.get("pemenang", pd.Series()).fillna("-").replace("", "-")
+        raw_pemenang.fillna("-")
+        .replace("", "-")
+        .apply(lambda x: str(x) if str(x).lower() != "nan" else "-")
     )
+
     df_tampil["tanggal selesai pemilihan"] = df_tender.get(
         "tanggal_tarik", pd.Series()
     ).fillna("-")
 
-    # Format rupiah dengan titik ribuan dan koma desimal untuk nilai kontrak
+    # Format rupiah dengan titik ribuan dan koma desimal
     raw_pagu = df_tender.get("pagu", pd.Series()).fillna(0.0)
 
 
