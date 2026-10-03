@@ -41,7 +41,7 @@ with tab_import:
   st.subheader("📤 Unggah File Excel Rujukan Tender")
   st.info(
       "Unggah file Excel Anda di sini. Sistem akan menyinkronkan seluruh kolom"
-      " termasuk nilai_kontrak ke database."
+      " termasuk nilai_kontrak secara presisi."
   )
 
   uploaded_excel = st.file_uploader(
@@ -83,7 +83,7 @@ with tab_import:
                 f"[SK]:{satuan_kerja}|[JP]:{jenis_pengadaan}|[TP]:{tahapan_pengadaan}|[AL]:{alamat}"
             )
 
-            # Membaca nilai_kontrak secara langsung dari file Excel
+            # Mengambil nilai_kontrak langsung dari file Excel secara akurat
             val_nilai_kontrak = float(row.get("nilai_kontrak", 0.0) or 0.0)
 
             val_pemenang = str(
@@ -101,7 +101,7 @@ with tab_import:
                     or ""
                 ),
                 "kategori": "Tender",
-                "pagu": val_nilai_kontrak,  # Disimpan langsung ke kolom nilai_kontrak di database
+                "pagu": val_nilai_kontrak,  # Disimpan ke database
                 "hps": 0.0,
                 "pemenang": val_pemenang,
                 "status_kepatuhan": str(
@@ -288,7 +288,7 @@ with tab2:
             " permanen?"
         )
         if st.button(
-            f"🗑️️ Hapus Paket Tender ({kode_pilih})",
+            f"🗑️ Hapus Paket Tender ({kode_pilih})",
             type="secondary",
             key=f"del_t_{kode_pilih}",
         ):
@@ -408,7 +408,7 @@ with tab3:
         "tanggal_tarik", pd.Series()
     ).fillna("-")
 
-    # Format rupiah persis seperti tab Non-Tender menggunakan data kolom 'pagu'
+    # Mengambil data dari kolom 'pagu' yang berisi nilai kontrak dan memformatnya ke Rupiah
     raw_pagu = df_tender.get("pagu", pd.Series()).fillna(0.0)
 
     def format_rupiah(val):
