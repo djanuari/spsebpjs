@@ -72,11 +72,7 @@ with tab1:
       if kode_nontender.strip() == "":
         st.error("kode_nontender wajib diisi sebagai pengenal unik!")
       else:
-        # Menyimpan seluruh data secara eksplisit di kolom keterangan agar mudah dibaca kembali
-        gabungan_ket = (
-            f"SK:{satuan_kerja} | JP:{jenis_pengadaan} |"
-            f" TP:{tahapan_pengadaan} | AL:{alamat}"
-        )
+        # Menyimpan langsung ke kolom database secara murni sesuai struktur Excel
         data_baru = {
             "id_paket": kode_nontender.strip(),
             "nama_paket": nama_nontender,
@@ -88,7 +84,10 @@ with tab1:
             "tanggal_tarik": str(tanggal_selesai),
             "email_pemenang": email,
             "telp_pemenang": telepon,
-            "keterangan": gabungan_ket,
+            "satuan_kerja": satuan_kerja,
+            "jenis_pengadaan": jenis_pengadaan,
+            "tahapan_pengadaan": tahapan_pengadaan,
+            "alamat": alamat,
         }
         if upsert_spse_data(data_baru):
           st.success(
@@ -150,9 +149,24 @@ with tab2:
               "telepon", value=str(r.get("telp_pemenang", "") or "")
           )
 
-          u_ket = st.text_area(
-              "Keterangan / Satuan Kerja / Alamat / Tahapan",
-              value=str(r.get("keterangan", "") or ""),
+          u_satker = st.text_input(
+              "satuan_kerja",
+              value=str(
+                  r.get("satuan_kerja", "")
+                  or r.get("keterangan", "")
+                  or ""
+              ),
+          )
+          u_jenis = st.text_input(
+              "jenis_pengadaan",
+              value=str(r.get("jenis_pengadaan", "") or ""),
+          )
+          u_tahap = st.text_input(
+              "tahapan_pengadaan",
+              value=str(r.get("tahapan_pengadaan", "") or ""),
+          )
+          u_alamat = st.text_area(
+              "Alamat", value=str(r.get("alamat", "") or "")
           )
 
           submit_update = st.form_submit_button(
@@ -171,7 +185,10 @@ with tab2:
                 "tanggal_tarik": str(r.get("tanggal_tarik", "")),
                 "email_pemenang": u_email,
                 "telp_pemenang": u_telp,
-                "keterangan": u_ket,
+                "satuan_kerja": u_satker,
+                "jenis_pengadaan": u_jenis,
+                "tahapan_pengadaan": u_tahap,
+                "alamat": u_alamat,
             }
             if upsert_spse_data(data_update):
               st.success(
@@ -242,7 +259,10 @@ with tab3:
 
     def evaluasi_berdasarkan_tanggal(row):
       status = str(row.get("status_kepatuhan", "Belum")).capitalize()
-      tgl_str = str(row.get("tanggal_tarik", "")).split(" ")[0]
+      tgl_str = str(
+          row.get("tanggal_tarik", "")
+          or row.get("tanggal selesai pemilihan", "")
+      ).split(" ")[0]
 
       if status == "Sudah":
         return "✅ Selesai / Patuh"
@@ -262,50 +282,31 @@ with tab3:
       except Exception:
         return "🚨 Wajib Kirim Notifikasi (Belum Patuh)"
 
-    # Fungsi ekstraksi presisi untuk mengambil data berdasarkan tag (SK, JP, TP, AL)
-    def extract_tag(text, tag):
-      try:
-        if not text:
-          return "-"
-        text_str = str(text)
-        parts = text_str.split("|")
-        for p in parts:
-          if f"{tag}:" in p:
-            val = p.split(f"{tag}:")[1].strip()
-            return val if val and val != "None" else "-"
-        # Jika tidak memakai tag standar, kembalikan teks asli jika bukan nan
-        return text_str if text_str.lower() != "nan" else "-"
-      except Exception:
-        return "-"
-
     df_tampil = pd.DataFrame()
 
+    # Memetakan langsung kolom secara presisi sesuai file Excel Anda
     df_tampil["kode_nontender"] = df_nontender.get("id_paket", "")
     df_tampil["nama_nontender"] = df_nontender.get("nama_paket", "")
-
-    # Menarik data secara akurat berdasarkan tag masing-masing
-    df_tampil["jenis_pengadaan"] = df_nontender.get("keterangan", "").apply(
-        lambda x: extract_tag(x, "JP")
+    df_tampil["jenis_pengadaan"] = df_nontender.get(
+        "jenis_pengadaan", "-"
+    ).fillna("-")
+    df_tampil["satuan_kerja"] = df_nontender.get("satuan_kerja", "-").fillna(
+        "-"
     )
-    df_tampil["satuan_kerja"] = df_nontender.get("keterangan", "").apply(
-        lambda x: extract_tag(x, "SK")
-    )
-    df_tampil["tahapan_pengadaan"] = df_nontender.get("keterangan", "").apply(
-        lambda x: extract_tag(x, "TP")
-    )
-
-    df_tampil["nama_pemenang"] = df_nontender.get("pemenang", "")
+    df_tampil["tahapan_pengadaan"] = df_nontender.get(
+        "tahapan_pengadaan", "-"
+    ).fillna("-")
+    df_tampil["nama_pemenang"] = df_nontender.get("pemenang", "-").fillna("-")
     df_tampil["tanggal selesai pemilihan"] = df_nontender.get(
-        "tanggal_tarik", ""
-    )
-    df_tampil["nilai_kontrak"] = df_nontender.get("pagu", 0.0)
-
-    df_tampil["Alamat"] = df_nontender.get("keterangan", "").apply(
-        lambda x: extract_tag(x, "AL")
-    )
-    df_tampil["email"] = df_nontender.get("email_pemenang", "")
-    df_tampil["telepon"] = df_nontender.get("telp_pemenang", "")
-    df_tampil["status_kepatuhan"] = df_nontender.get("status_kepatuhan", "Belum")
+        "tanggal_tarik", "-"
+    ).fillna("-")
+    df_tampil["nilai_kontrak"] = df_nontender.get("pagu", 0.0).fillna(0.0)
+    df_tampil["Alamat"] = df_nontender.get("alamat", "-").fillna("-")
+    df_tampil["email"] = df_nontender.get("email_pemenang", "-").fillna("-")
+    df_tampil["telepon"] = df_nontender.get("telp_pemenang", "-").fillna("-")
+    df_tampil["status_kepatuhan"] = df_nontender.get(
+        "status_kepatuhan", "Belum"
+    ).fillna("Belum")
 
     df_tampil["Evaluasi_Otomatis"] = df_nontender.apply(
         evaluasi_berdasarkan_tanggal, axis=1
