@@ -1,9 +1,8 @@
 from datetime import datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-import smtplib
+import sqlite3
 import urllib.parse
-from api_connector import get_all_spse_data, supabase, upsert_spse_data
 import pandas as pd
 import streamlit as st
 
@@ -14,6 +13,70 @@ if not st.session_state.get("logged_in"):
 st.set_page_config(
     page_title="Non-Tender / Pengadaan Langsung", page_icon="📦", layout="wide"
 )
+
+# Koneksi Database SQLite Lokal Asli
+conn = sqlite3.connect("database_spse.db", check_same_thread=False)
+cursor = conn.cursor()
+
+# Mempertahankan struktur tabel asli persis seperti semula
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS tabel_nontender (
+    kode_nontender TEXT PRIMARY KEY,
+    nama_nontender TEXT,
+    jenis_pengadaan TEXT,
+    satuan_kerja TEXT,
+    nilai_hps REAL,
+    nilai_negosiasi REAL,
+    tanggal_kontrak TEXT,
+    nama_pemenang TEXT,
+    alamat_pemenang TEXT,
+    email_pemenang TEXT,
+    telp_pemenang TEXT,
+    status_bpjs TEXT
+)
+""")
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS tabel_log_notifikasi (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    waktu TEXT,
+    kategori_paket TEXT,
+    kode_paket TEXT,
+    penerima TEXT,
+    tujuan TEXT,
+    media TEXT,
+    status TEXT,
+    keterangan TEXT
+)
+""")
+conn.commit()
+
+
+def catat_log(
+    kategori, kode_paket, penerima, tujuan, media, status, keterangan
+):
+  waktu_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+  try:
+    cursor.execute(
+        """
+            INSERT INTO tabel_log_notifikasi (waktu, kategori_paket, kode_paket, penerima, tujuan, media, status, keterangan)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            waktu_sekarang,
+            kategori,
+            kode_paket,
+            penerima,
+            tujuan,
+            media,
+            status,
+            keterangan,
+        ),
+    )
+    conn.commit()
+  except Exception:
+    pass
+
 
 st.title("📦 2. Data Non-Tender / Pengadaan Langsung & Kepatuhan BPJS")
 st.markdown("---")
@@ -30,13 +93,6 @@ jenis_pengadaan_opsi = [
     "Pengadaan Barang",
 ]
 
-# Ambil data terbaru khusus kategori Non-Tender dari Supabase Cloud
-df_all = get_all_spse_data()
-if not df_all.empty and "kategori" in df_all.columns:
-  df_nontender = df_all[df_all["kategori"].str.lower() == "non-tender"]
-else:
-  df_nontender = pd.DataFrame()
-
 # TAB 1: TAMBAH DATA
 with tab1:
   st.subheader("Formulir Input Non-Tender Baru")
@@ -46,19 +102,19 @@ with tab1:
     satuan_kerja = st.text_input("3. Satuan Kerja")
 
     c1, c2 = st.columns(2)
-    nilai_pagu = c1.number_input(
-        "4. Nilai Pagu (Rp)", min_value=0.0, format="%.2f"
+    nilai_hps = c1.number_input("4. Nilai HPS (Rp)", min_value=0.0, format="%.2f")
+    nilai_negosiasi = c2.number_input(
+        "5. Nilai Negosiasi (Rp)", min_value=0.0, format="%.2f"
     )
-    nilai_hps = c2.number_input("5. Nilai HPS (Rp)", min_value=0.0, format="%.2f")
 
     jenis_pengadaan = st.selectbox("6. Jenis Pengadaan", jenis_pengadaan_opsi)
     nama_pemenang = st.text_input("7. Nama Pemenang / Penyedia")
 
     c3, c4 = st.columns(2)
-    nilai_kontrak = c3.number_input(
-        "8. Nilai Kontrak (Rp)", min_value=0.0, format="%.2f"
+    tanggal_kontrak = c3.date_input("8. Tanggal Kontrak")
+    status_bpjs = c4.selectbox(
+        "9. Sudah Memenuhi Ketentuan BPJS?", ["Belum", "Sudah"]
     )
-    tanggal_penetapan = c4.date_input("9. Tanggal Penetapan Pemenang")
 
     alamat_pemenang = st.text_area("10. Alamat Pemenang")
 
@@ -66,99 +122,129 @@ with tab1:
     email_pemenang = c5.text_input("11. Email Pemenang")
     telp_pemenang = c6.text_input("12. Nomor Telepon Pemenang")
 
-    status_bpjs = st.selectbox(
-        "13. Sudah Memenuhi Ketentuan BPJS?", ["Belum", "Sudah"]
-    )
-
     submit_nt = st.form_submit_button("Simpan Data Non-Tender", type="primary")
 
     if submit_nt:
       if kode_nontender.strip() == "":
         st.error("Kode Non-Tender wajib diisi!")
       else:
-        data_baru = {
-            "id_paket": kode_nontender.strip(),
-            "nama_paket": nama_nontender,
-            "kategori": "Non-Tender",
-            "pagu": nilai_pagu,
-            "hps": nilai_hps,
-            "pemenang": nama_pemenang,
-            "status_kepatuhan": status_bpjs,
-            "tanggal_tarik": str(tanggal_penetapan),
-            "email_pemenang": email_pemenang,
-            "telp_pemenang": telp_pemenang,
-            "keterangan": f"Satuan Kerja: {satuan_kerja} | Jenis: {jenis_pengadaan} | Kontrak: Rp {nilai_kontrak:,.2f}",
-        }
-        if upsert_spse_data(data_baru):
-          st.success(
-              f"Data Non-Tender dengan kode {kode_nontender} berhasil disimpan ke"
-              " cloud!"
+        try:
+          cursor.execute(
+              """
+                        INSERT INTO tabel_nontender 
+                        (kode_nontender, nama_nontender, jenis_pengadaan, satuan_kerja, nilai_hps, nilai_negosiasi, 
+                         tanggal_kontrak, nama_pemenang, alamat_pemenang, email_pemenang, telp_pemenang, status_bpjs)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+              (
+                  kode_nontender,
+                  nama_nontender,
+                  jenis_pengadaan,
+                  satuan_kerja,
+                  nilai_hps,
+                  nilai_negosiasi,
+                  str(tanggal_kontrak),
+                  nama_pemenang,
+                  alamat_pemenang,
+                  email_pemenang,
+                  telp_pemenang,
+                  status_bpjs,
+              ),
           )
-          st.rerun()
+          conn.commit()
+          st.success(
+              f"Data Non-Tender dengan kode {kode_nontender} berhasil disimpan!"
+          )
+        except sqlite3.IntegrityError:
+          st.error(f"Kode non-tender '{kode_nontender}' sudah terdaftar!")
+        except Exception as e:
+          st.error(f"Terjadi kesalahan: {e}")
 
 # TAB 2: EDIT & HAPUS DATA
 with tab2:
   st.subheader("Edit atau Hapus Data Berdasarkan Kode Non-Tender")
-  if not df_nontender.empty and "id_paket" in df_nontender.columns:
-    df_nontender["label_edit"] = (
-        df_nontender["id_paket"].astype(str)
+  try:
+    df_list = pd.read_sql_query(
+        "SELECT kode_nontender, nama_nontender FROM tabel_nontender", conn
+    )
+  except Exception:
+    df_list = pd.DataFrame()
+
+  if not df_list.empty:
+    df_list["label_edit"] = (
+        df_list["kode_nontender"].astype(str)
         + " - "
-        + df_nontender["nama_paket"].fillna("")
+        + df_list["nama_nontender"].fillna("")
     )
     pilihan_edit = st.selectbox(
         "Pilih Kode Non-Tender yang ingin dikelola:",
-        df_nontender["label_edit"].tolist(),
+        df_list["label_edit"].tolist(),
     )
 
     if pilihan_edit:
       kode_pilih = pilihan_edit.split(" - ")[0]
-      matched_row = df_nontender[df_nontender["id_paket"].astype(str) == kode_pilih]
+      df_row = pd.read_sql_query(
+          f"SELECT * FROM tabel_nontender WHERE kode_nontender = '{kode_pilih}'",
+          conn,
+      )
 
-      if not matched_row.empty:
-        r = matched_row.iloc[0]
+      if not df_row.empty:
+        r = df_row.iloc[0]
         st.info(f"Sedang mengelola Kode Non-Tender: **{kode_pilih}**")
 
         with st.form(f"form_edit_nontender_{kode_pilih}"):
           u_nama = st.text_input(
-              "Nama Paket", value=str(r.get("nama_paket", "") or "")
+              "Nama Paket", value=str(r.get("nama_nontender", "") or "")
           )
+          u_satker = st.text_input(
+              "Satuan Kerja", value=str(r.get("satuan_kerja", "") or "")
+          )
+
           uc1, uc2 = st.columns(2)
-          u_pagu = uc1.number_input(
-              "Nilai Pagu (Rp)",
-              value=float(r.get("pagu", 0.0) or 0.0),
+          u_hps = uc1.number_input(
+              "Nilai HPS (Rp)",
+              value=float(r.get("nilai_hps", 0.0) or 0.0),
               format="%.2f",
           )
-          u_hps = uc2.number_input(
-              "Nilai HPS (Rp)",
-              value=float(r.get("hps", 0.0) or 0.0),
+          u_nego = uc2.number_input(
+              "Nilai Negosiasi (Rp)",
+              value=float(r.get("nilai_negosiasi", 0.0) or 0.0),
               format="%.2f",
           )
 
-          u_pemenang = st.text_input(
-              "Nama Pemenang", value=str(r.get("pemenang", "") or "")
+          curr_jp = r.get("jenis_pengadaan", "Pengadaan Barang")
+          jp_idx = (
+              jenis_pengadaan_opsi.index(curr_jp)
+              if curr_jp in jenis_pengadaan_opsi
+              else 0
           )
+          u_jenis = st.selectbox(
+              "Jenis Pengadaan", jenis_pengadaan_opsi, index=jp_idx
+          )
+          u_pemenang = st.text_input(
+              "Nama Pemenang", value=str(r.get("nama_pemenang", "") or "")
+          )
+
           stat_idx = (
-              ["Belum", "Sudah"].index(r.get("status_kepatuhan", "Belum"))
-              if r.get("status_kepatuhan") in ["Belum", "Sudah"]
+              ["Belum", "Sudah"].index(r.get("status_bpjs", "Belum"))
+              if r.get("status_bpjs") in ["Belum", "Sudah"]
               else 0
           )
           u_bpjs = st.selectbox(
               "Status BPJS", ["Belum", "Sudah"], index=stat_idx
           )
 
+          u_alamat = st.text_area(
+              "Alamat Pemenang", value=str(r.get("alamat_pemenang", "") or "")
+          )
+
           uc5, uc6 = st.columns(2)
           u_email = uc5.text_input(
-              "Email Pemenang",
-              value=str(r.get("email_pemenang", "") or ""),
+              "Email Pemenang", value=str(r.get("email_pemenang", "") or "")
           )
           u_telp = uc6.text_input(
               "Nomor Telepon Pemenang",
               value=str(r.get("telp_pemenang", "") or ""),
-          )
-
-          u_ket = st.text_area(
-              "Keterangan / Satuan Kerja",
-              value=str(r.get("keterangan", "") or ""),
           )
 
           submit_update = st.form_submit_button(
@@ -166,25 +252,33 @@ with tab2:
           )
 
           if submit_update:
-            data_update = {
-                "id_paket": kode_pilih,
-                "nama_paket": u_nama,
-                "kategori": "Non-Tender",
-                "pagu": u_pagu,
-                "hps": u_hps,
-                "pemenang": u_pemenang,
-                "status_kepatuhan": u_bpjs,
-                "tanggal_tarik": str(r.get("tanggal_tarik", "")),
-                "email_pemenang": u_email,
-                "telp_pemenang": u_telp,
-                "keterangan": u_ket,
-            }
-            if upsert_spse_data(data_update):
-              st.success(
-                  f"Data Non-Tender dengan kode {kode_pilih} berhasil"
-                  " diperbarui di cloud!"
-              )
-              st.rerun()
+            cursor.execute(
+                """
+                            UPDATE tabel_nontender 
+                            SET nama_nontender=?, satuan_kerja=?, nilai_hps=?, nilai_negosiasi=?, jenis_pengadaan=?, 
+                                nama_pemenang=?, alamat_pemenang=?, email_pemenang=?, telp_pemenang=?, status_bpjs=?
+                            WHERE kode_nontender=?
+                        """,
+                (
+                    u_nama,
+                    u_satker,
+                    u_hps,
+                    u_nego,
+                    u_jenis,
+                    u_pemenang,
+                    u_alamat,
+                    u_email,
+                    u_telp,
+                    u_bpjs,
+                    kode_pilih,
+                ),
+            )
+            conn.commit()
+            st.success(
+                f"Data Non-Tender dengan kode {kode_pilih} berhasil"
+                " diperbarui!"
+            )
+            st.rerun()
 
         # Tombol Hapus Data Satuan
         st.markdown("---")
@@ -194,22 +288,28 @@ with tab2:
             key=f"del_nt_{kode_pilih}",
         ):
           try:
-            supabase.table("tabel_spse_bpjs").delete().eq(
-                "id_paket", kode_pilih
-            ).execute()
+            cursor.execute(
+                "DELETE FROM tabel_nontender WHERE kode_nontender = ?",
+                (kode_pilih,),
+            )
+            conn.commit()
             st.success(
-                f"Data Non-Tender dengan kode {kode_pilih} berhasil dihapus dari"
-                " cloud!"
+                f"Data Non-Tender dengan kode {kode_pilih} berhasil dihapus!"
             )
             st.rerun()
           except Exception as e:
             st.error(f"Gagal menghapus data: {e}")
   else:
-    st.info("Belum ada data Non-Tender tersimpan di cloud.")
+    st.info("Belum ada data Non-Tender tersimpan untuk dikelola.")
 
 # TAB 3: LAPORAN & NOTIFIKASI
 with tab3:
   st.subheader("Rekapitulasi Paket Non-Tender & Peringatan Otomatis")
+  try:
+    df_nontender = pd.read_sql_query("SELECT * FROM tabel_nontender", conn)
+  except Exception:
+    df_nontender = pd.DataFrame()
+
   if not df_nontender.empty:
     st.dataframe(df_nontender, use_container_width=True, hide_index=True)
 
@@ -224,4 +324,4 @@ with tab3:
         type="primary",
     )
   else:
-    st.info("Belum ada data Non-Tender tersimpan di database cloud.")
+    st.info("Belum ada data Non-Tender tersimpan.")
