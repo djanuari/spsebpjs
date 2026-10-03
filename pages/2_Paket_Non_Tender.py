@@ -374,21 +374,31 @@ with tab3:
         if not matched_rows_nt.empty:
           row_n = matched_rows_nt.iloc[0]
           pemenang = row_n.get("pemenang", "Pemenang") or "Pemenang"
+
+          # Mengatasi nilai None, NaN, atau 'nan' agar aman dari TypeError
+          raw_email = row_n.get("email_pemenang", "")
           email_tujuan = (
-              row_n.get("email_pemenang", "")
-              or "Belum ada email terdaftar"
+              str(raw_email).strip()
+              if raw_email and str(raw_email).lower() != "nan"
+              else ""
           )
+
+          raw_telp = row_n.get("telp_pemenang", "")
           telp_tujuan = (
-              row_n.get("telp_pemenang", "") or "Belum ada nomor WA terdaftar"
+              str(raw_telp).strip()
+              if raw_telp and str(raw_telp).lower() != "nan"
+              else ""
           )
+
           tgl_kontrak_val = str(row_n.get("tanggal_tarik", "-"))
           status_pilih = row_n.get("status_kepatuhan", "Belum")
 
           st.info(
               f"📌 **Detail Paket Terpilih:**\n- Tanggal Kontrak:"
               f" `{tgl_kontrak_val}`\n- Status Kepatuhan: `{status_pilih}`\n- Email"
-              f" Pemenang: `{email_tujuan}`\n- No. WhatsApp Pemenang:"
-              f" `{telp_tujuan}`"
+              f" Pemenang: `{email_tujuan if email_tujuan else 'Belum ada email terdaftar'}`\n- No."
+              f" WhatsApp Pemenang:"
+              f" `{telp_tujuan if telp_tujuan else 'Belum ada nomor WA terdaftar'}`"
           )
 
           # Pesan untuk Pemenang
@@ -460,7 +470,7 @@ Admin SPSE Pemerintah Kota Kendari"""
                       f"Gagal mengirim email (pastikan App Password benar): {e}"
                   )
 
-            if telp_tujuan and telp_tujuan != "Belum ada nomor WA terdaftar":
+            if telp_tujuan:
               encoded_wa = urllib.parse.quote(wa_text_nt)
               wa_url = f"https://wa.me/{telp_tujuan}?text={encoded_wa}"
               st.markdown(
