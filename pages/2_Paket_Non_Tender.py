@@ -42,59 +42,60 @@ else:
 with tab1:
   st.subheader("Formulir Input Non-Tender Baru")
   with st.form("form_tambah_nontender", clear_on_submit=True):
-    kode_paket = st.text_input("1. Kode Paket (Unik / Primary Key)")
-    nama_paket = st.text_input("2. Nama Paket")
+    kode_nontender = st.text_input("1. kode_nontender (Primary Key)")
+    nama_nontender = st.text_input("2. nama_nontender")
 
     c1, c2 = st.columns(2)
-    jenis_pengadaan = c1.selectbox("3. Jenis Pengadaan", jenis_pengadaan_opsi)
-    satuan_kerja = c2.text_input("4. Satuan Kerja")
+    jenis_pengadaan = c1.selectbox("3. jenis_pengadaan", jenis_pengadaan_opsi)
+    satuan_kerja = c2.text_input("4. satuan_kerja")
 
     c3, c4 = st.columns(2)
-    tahapan_pengadaan = c3.selectbox("5. Tahapan Pengadaan", tahapan_opsi)
-    nama_pemenang = c4.text_input("6. Nama Pemenang")
+    tahapan_pengadaan = c3.selectbox("5. tahapan_pengadaan", tahapan_opsi)
+    nama_pemenang = c4.text_input("6. nama_pemenang")
 
     c5, c6 = st.columns(2)
-    tanggal_selesai = c5.date_input("7. Tanggal Selesai Pemilihan / Kontrak")
+    tanggal_selesai = c5.date_input("7. tanggal selesai pemilihan")
     nilai_kontrak = c6.number_input(
-        "8. Nilai Kontrak (Rp)", min_value=0.0, format="%.2f"
+        "8. nilai_kontrak (Rp)", min_value=0.0, format="%.2f"
     )
 
-    status_bpjs = c4.selectbox("9. Status Kepatuhan BPJS", ["Belum", "Sudah"])
+    status_bpjs = c4.selectbox("9. status_kepatuhan", ["Belum", "Sudah"])
     alamat = st.text_area("10. Alamat")
 
     c7, c8 = st.columns(2)
-    email = c7.text_input("11. Email")
-    telepon = c8.text_input("12. Telepon")
+    email = c7.text_input("11. email")
+    telepon = c8.text_input("12. telepon")
 
     submit_nt = st.form_submit_button("Simpan Data Non-Tender", type="primary")
 
     if submit_nt:
-      if kode_paket.strip() == "":
-        st.error("Kode Paket wajib diisi sebagai pengenal unik!")
+      if kode_nontender.strip() == "":
+        st.error("kode_nontender wajib diisi sebagai pengenal unik!")
       else:
         data_baru = {
-            "id_paket": kode_paket.strip(),
-            "nama_paket": nama_paket,
+            "id_paket": kode_nontender.strip(),
+            "nama_paket": nama_nontender,
             "kategori": "Non-Tender",
-            "pagu": nilai_kontrak,
+            "pagu": nilai_kontrak,  # Menyimpan nilai kontrak secara langsung
             "hps": 0.0,
             "pemenang": nama_pemenang,
             "status_kepatuhan": status_bpjs,
             "tanggal_tarik": str(tanggal_selesai),
             "email_pemenang": email,
             "telp_pemenang": telepon,
-            "keterangan": f"Satuan Kerja: {satuan_kerja} || Jenis: {jenis_pengadaan} || Tahapan: {tahapan_pengadaan} || Alamat: {alamat}",
+            # Menyimpan atribut secara rapi untuk dipetakan kembali ke tabel laporan
+            "keterangan": f"SatuanKerja: {satuan_kerja} || JenisPengadaan: {jenis_pengadaan} || Tahapan: {tahapan_pengadaan} || Alamat: {alamat}",
         }
         if upsert_spse_data(data_baru):
           st.success(
-              f"Data Non-Tender dengan kode {kode_paket} berhasil disimpan ke"
-              " cloud Supabase!"
+              f"Data Non-Tender dengan kode {kode_nontender} berhasil disimpan"
+              " ke cloud Supabase!"
           )
           st.rerun()
 
 # TAB 2: EDIT & HAPUS DATA
 with tab2:
-  st.subheader("Edit atau Hapus Data Berdasarkan Kode Paket")
+  st.subheader("Edit atau Hapus Data Berdasarkan kode_nontender")
   if not df_nontender.empty and "id_paket" in df_nontender.columns:
     df_nontender["label_edit"] = (
         df_nontender["id_paket"].astype(str)
@@ -102,7 +103,7 @@ with tab2:
         + df_nontender["nama_paket"].fillna("")
     )
     pilihan_edit = st.selectbox(
-        "Pilih Kode Paket yang ingin dikelola:",
+        "Pilih kode_nontender yang ingin dikelola:",
         df_nontender["label_edit"].tolist(),
     )
 
@@ -112,19 +113,19 @@ with tab2:
 
       if not matched_row.empty:
         r = matched_row.iloc[0]
-        st.info(f"Sedang mengelola Kode Paket: **{kode_pilih}**")
+        st.info(f"Sedang mengelola kode_nontender: **{kode_pilih}**")
 
         with st.form(f"form_edit_nontender_{kode_pilih}"):
           u_nama = st.text_input(
-              "Nama Paket", value=str(r.get("nama_paket", "") or "")
+              "nama_nontender", value=str(r.get("nama_paket", "") or "")
           )
           u_pemenang = st.text_input(
-              "Nama Pemenang", value=str(r.get("pemenang", "") or "")
+              "nama_pemenang", value=str(r.get("pemenang", "") or "")
           )
 
           uc1, uc2 = st.columns(2)
           u_nilai = uc1.number_input(
-              "Nilai Kontrak (Rp)",
+              "nilai_kontrak (Rp)",
               value=float(r.get("pagu", 0.0) or 0.0),
               format="%.2f",
           )
@@ -134,15 +135,15 @@ with tab2:
               else 0
           )
           u_bpjs = uc2.selectbox(
-              "Status Kepatuhan BPJS", ["Belum", "Sudah"], index=stat_idx
+              "status_kepatuhan", ["Belum", "Sudah"], index=stat_idx
           )
 
           uc3, uc4 = st.columns(2)
           u_email = uc3.text_input(
-              "Email", value=str(r.get("email_pemenang", "") or "")
+              "email", value=str(r.get("email_pemenang", "") or "")
           )
           u_telp = uc4.text_input(
-              "Telepon", value=str(r.get("telp_pemenang", "") or "")
+              "telepon", value=str(r.get("telp_pemenang", "") or "")
           )
 
           u_ket = st.text_area(
@@ -181,7 +182,7 @@ with tab2:
             " permanen?"
         )
         if st.button(
-            f"🗑️ Hapus Paket Non-Tender ({kode_pilih})",
+            f"🗑️️ Hapus Paket Non-Tender ({kode_pilih})",
             type="secondary",
             key=f"del_nt_{kode_pilih}",
         ):
@@ -209,7 +210,7 @@ with tab2:
           key="chk_hapus_semua_nt",
       )
       if st.button(
-          "🗑️ Hapus SEMUA Data Non-Tender Sekarang", type="primary"
+          "🗑️️ Hapus SEMUA Data Non-Tender Sekarang", type="primary"
       ):
         if konfirmasi_hapus_semua:
           try:
@@ -277,42 +278,39 @@ with tab3:
 
     df_tampil = pd.DataFrame()
 
-    # Urutan kolom disesuaikan persis dengan formulir input (1 s.d. 12)
-    df_tampil["1. Kode Paket"] = df_nontender.get("id_paket", "")
-    df_tampil["2. Nama Paket"] = df_nontender.get("nama_paket", "")
-    df_tampil["3. Jenis Pengadaan"] = df_nontender.get("keterangan", "").apply(
-        lambda x: extract_ket(x, "Jenis:")
+    # Memetakan kolom persis seperti urutan permintaan dan file Excel Anda
+    df_tampil["kode_nontender"] = df_nontender.get("id_paket", "")
+    df_tampil["nama_nontender"] = df_nontender.get("nama_paket", "")
+    df_tampil["jenis_pengadaan"] = df_nontender.get("keterangan", "").apply(
+        lambda x: extract_ket(x, "JenisPengadaan:")
     )
-    df_tampil["4. Satuan Kerja"] = df_nontender.get("keterangan", "").apply(
-        lambda x: extract_ket(x, "Satuan Kerja:")
+    df_tampil["satuan_kerja"] = df_nontender.get("keterangan", "").apply(
+        lambda x: extract_ket(x, "SatuanKerja:")
     )
-    df_tampil["5. Tahapan Pengadaan"] = df_nontender.get("keterangan", "").apply(
+    df_tampil["tahapan_pengadaan"] = df_nontender.get("keterangan", "").apply(
         lambda x: extract_ket(x, "Tahapan:")
     )
-    df_tampil["6. Nama Pemenang"] = df_nontender.get("pemenang", "")
-    df_tampil["7. Tanggal Selesai Pemilihan / Kontrak"] = df_nontender.get(
+    df_tampil["nama_pemenang"] = df_nontender.get("pemenang", "")
+    df_tampil["tanggal selesai pemilihan"] = df_nontender.get(
         "tanggal_tarik", ""
     )
-    df_tampil["8. Nilai Kontrak"] = df_nontender.get("pagu", 0.0)
-    df_tampil["9. Status Kepatuhan BPJS"] = df_nontender.get(
-        "status_kepatuhan", "Belum"
-    )
-    df_tampil["10. Alamat"] = df_nontender.get("keterangan", "").apply(
+    df_tampil["nilai_kontrak"] = df_nontender.get("pagu", 0.0)
+    df_tampil["Alamat"] = df_nontender.get("keterangan", "").apply(
         lambda x: extract_ket(x, "Alamat:")
     )
-    df_tampil["11. Email"] = df_nontender.get("email_pemenang", "")
-    df_tampil["12. Telepon"] = df_nontender.get("telp_pemenang", "")
+    df_tampil["email"] = df_nontender.get("email_pemenang", "")
+    df_tampil["telepon"] = df_nontender.get("telp_pemenang", "")
+    df_tampil["status_kepatuhan"] = df_nontender.get("status_kepatuhan", "Belum")
 
-    # Kolom Evaluasi Otomatis sistem
     df_tampil["Evaluasi_Otomatis"] = df_nontender.apply(
         evaluasi_berdasarkan_tanggal, axis=1
     )
 
     # Pengurutan: Pemilihan Berlangsung di atas, Status Belum di atas
-    df_tampil["_sort_tahapan"] = df_tampil["5. Tahapan Pengadaan"].apply(
+    df_tampil["_sort_tahapan"] = df_tampil["tahapan_pengadaan"].apply(
         lambda x: 0 if "Pemilihan Berlangsung" in str(x) else 1
     )
-    df_tampil["_sort_status"] = df_tampil["9. Status Kepatuhan BPJS"].apply(
+    df_tampil["_sort_status"] = df_tampil["status_kepatuhan"].apply(
         lambda x: 0 if str(x).lower() == "belum" else 1
     )
 
@@ -322,7 +320,7 @@ with tab3:
 
     total_urgent = df_tampil["Evaluasi_Otomatis"].str.contains("URGENT").sum()
     total_belum = (
-        df_tampil["9. Status Kepatuhan BPJS"].str.capitalize() == "Belum"
+        df_tampil["status_kepatuhan"].str.capitalize() == "Belum"
     ).sum()
 
     if total_urgent > 0:
@@ -340,22 +338,20 @@ with tab3:
     st.dataframe(
         df_tampil,
         column_config={
-            "1. Kode Paket": "1. Kode Paket",
-            "2. Nama Paket": "2. Nama Paket",
-            "3. Jenis Pengadaan": "3. Jenis Pengadaan",
-            "4. Satuan Kerja": "4. Satuan Kerja",
-            "5. Tahapan Pengadaan": "5. Tahapan Pengadaan",
-            "6. Nama Pemenang": "6. Nama Pemenang",
-            "7. Tanggal Selesai Pemilihan / Kontrak": (
-                "7. Tanggal Selesai Pemilihan / Kontrak"
+            "kode_nontender": "kode_nontender",
+            "nama_nontender": "nama_nontender",
+            "jenis_pengadaan": "jenis_pengadaan",
+            "satuan_kerja": "satuan_kerja",
+            "tahapan_pengadaan": "tahapan_pengadaan",
+            "nama_pemenang": "nama_pemenang",
+            "tanggal selesai pemilihan": "tanggal selesai pemilihan",
+            "nilai_kontrak": st.column_config.NumberColumn(
+                "nilai_kontrak", format="Rp %.2f"
             ),
-            "8. Nilai Kontrak": st.column_config.NumberColumn(
-                "8. Nilai Kontrak", format="Rp %.2f"
-            ),
-            "9. Status Kepatuhan BPJS": "9. Status Kepatuhan BPJS",
-            "10. Alamat": "10. Alamat",
-            "11. Email": "11. Email",
-            "12. Telepon": "12. Telepon",
+            "Alamat": "Alamat",
+            "email": "email",
+            "telepon": "telepon",
+            "status_kepatuhan": "status_kepatuhan",
             "Evaluasi_Otomatis": "Status Peringatan (H+1)",
         },
         use_container_width=True,
@@ -379,7 +375,7 @@ with tab3:
     )
 
     with st.expander(
-        "⚙️ Konfigurasi & Kirim Pesan Otomatis (Pemenang & PIC BPJS)",
+        "⚙️️ Konfigurasi & Kirim Pesan Otomatis (Pemenang & PIC BPJS)",
         expanded=True,
     ):
       col_smtp1, col_smtp2 = st.columns(2)
