@@ -11,7 +11,7 @@ if not st.session_state.get("logged_in"):
   st.stop()
 
 st.set_page_config(
-    page_title="Paket Tender / Seleksi", page_icon="🏛️️", layout="wide"
+    page_title="Paket Tender / Seleksi", page_icon="🏛️", layout="wide"
 )
 
 st.title("🏛️ 1. Data Paket Tender / Seleksi & Kepatuhan BPJS")
@@ -36,13 +36,13 @@ jenis_pengadaan_opsi = [
 
 tahapan_opsi = ["Pemilihan Berlangsung", "Pemilihan Selesai"]
 
-# TAB IMPORT EXCEL: Pemetaan kolom yang akurat untuk Tender
+# TAB IMPORT EXCEL: Sinkronisasi data rujukan Tender secara presisi
 with tab_import:
   st.subheader("📤 Unggah File Excel Rujukan Tender")
   st.info(
       "Unggah file Excel Anda di sini. Sistem akan otomatis menyinkronkan"
-      " seluruh data termasuk nama pemenang, nilai kontrak, satuan kerja, dan"
-      " tahapan ke database."
+      " seluruh data termasuk nilai kontrak, nama pemenang, dan atribut"
+      " lainnya ke database."
   )
 
   uploaded_excel = st.file_uploader(
@@ -65,7 +65,6 @@ with tab_import:
         success_count = 0
         with st.spinner("Sedang menyinkronkan data Tender ke Supabase..."):
           for _, row in df_import.iterrows():
-            # Mendapatkan kode paket secara fleksibel
             kode = str(
                 row.get("kode_tender", "")
                 or row.get("kode_nontender", "")
@@ -85,7 +84,7 @@ with tab_import:
                 f"[SK]:{satuan_kerja}|[JP]:{jenis_pengadaan}|[TP]:{tahapan_pengadaan}|[AL]:{alamat}"
             )
 
-            # Membaca nilai kontrak / pagu dengan aman
+            # Membaca nilai kontrak / pagu dengan aman dari berbagai kemungkinan nama kolom excel
             val_pagu = 0.0
             for col_p in [
                 "nilai_kontrak",
@@ -97,7 +96,8 @@ with tab_import:
               if col_p in row and pd.notna(row[col_p]):
                 try:
                   val_pagu = float(row[col_p])
-                  break
+                  if val_pagu > 0:
+                    break
                 except Exception:
                   pass
 
@@ -310,7 +310,7 @@ with tab2:
             " permanen?"
         )
         if st.button(
-            f"🗑️ Hapus Paket Tender ({kode_pilih})",
+            f"🗑️️ Hapus Paket Tender ({kode_pilih})",
             type="secondary",
             key=f"del_t_{kode_pilih}",
         ):
@@ -420,7 +420,7 @@ with tab3:
     )
     df_tampil["Alamat"] = ket_series.apply(lambda x: extract_val(x, "AL"))
 
-    # Mengambil langsung dari kolom 'pemenang' di Supabase
+    # Nama pemenang
     raw_pemenang = df_tender.get("pemenang", pd.Series())
     df_tampil["nama_pemenang"] = (
         raw_pemenang.fillna("-")
@@ -432,7 +432,7 @@ with tab3:
         "tanggal_tarik", pd.Series()
     ).fillna("-")
 
-    # Format rupiah dengan titik ribuan dan koma desimal
+    # Mengambil nilai kontrak secara akurat dari kolom 'pagu' di Supabase
     raw_pagu = df_tender.get("pagu", pd.Series()).fillna(0.0)
 
 
@@ -676,7 +676,7 @@ Admin SPSE Pemerintah Kota Kendari"""
                 st.error("Email PIC BPJS belum valid atau kosong!")
               else:
                 try:
-                  msg_pic = MIMEMultipart()
+                  msg_pic = MIMEMultipay()
                   msg_pic["From"] = smtp_email
                   msg_pic["To"] = email_pic
                   msg_pic["Subject"] = (
