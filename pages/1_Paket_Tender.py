@@ -36,13 +36,12 @@ jenis_pengadaan_opsi = [
 
 tahapan_opsi = ["Pemilihan Berlangsung", "Pemilihan Selesai"]
 
-# TAB IMPORT EXCEL
+# TAB IMPORT EXCEL: Perbaikan pemetaan nilai_kontrak secara presisi
 with tab_import:
   st.subheader("📤 Unggah File Excel Rujukan Tender")
   st.info(
-      "Unggah file Excel Anda di sini. Sistem akan membaca kolom"
-      " `nilai_kontrak` dan menyinkronkan seluruh data ke database secara"
-      " presisi."
+      "Unggah file Excel Anda di sini. Sistem akan menyinkronkan seluruh kolom"
+      " termasuk nilai_kontrak dan nama_pemenang secara tepat."
   )
 
   uploaded_excel = st.file_uploader(
@@ -84,28 +83,15 @@ with tab_import:
                 f"[SK]:{satuan_kerja}|[JP]:{jenis_pengadaan}|[TP]:{tahapan_pengadaan}|[AL]:{alamat}"
             )
 
-            # Mengambil nilai kontrak secara langsung
-            val_nilai_kontrak = 0.0
-            for col_n in ["nilai_kontrak", "nilai_pagu", "hps"]:
-              if col_n in row and pd.notna(row[col_n]):
-                try:
-                  val_nilai_kontrak = float(row[col_n])
-                  if val_nilai_kontrak > 0:
-                    break
-                except Exception:
-                  pass
+            # Membaca nilai_kontrak langsung dari file Excel secara aman
+            val_nilai_kontrak = float(row.get("nilai_kontrak", 0.0) or 0.0)
 
-            val_pemenang = ""
-            for col_pem in [
-                "nama_pemenang",
-                "pemenang",
-                "penyedia",
-                "nama_penyedia",
-            ]:
-              if col_pem in row and pd.notna(row[col_pem]):
-                val_pemenang = str(row[col_pem]).strip()
-                if val_pemenang and val_pemenang.lower() != "nan":
-                  break
+            # Membaca nama pemenang
+            val_pemenang = str(
+                row.get("nama_pemenang", "")
+                or row.get("pemenang", "")
+                or "-"
+            )
 
             data_row = {
                 "id_paket": kode.strip(),
@@ -116,7 +102,7 @@ with tab_import:
                     or ""
                 ),
                 "kategori": "Tender",
-                "pagu": val_nilai_kontrak,  # Disimpan ke database
+                "pagu": val_nilai_kontrak,  # Disimpan ke kolom pagu di database
                 "hps": 0.0,
                 "pemenang": val_pemenang,
                 "status_kepatuhan": str(
@@ -423,7 +409,7 @@ with tab3:
         "tanggal_tarik", pd.Series()
     ).fillna("-")
 
-    # Format rupiah persis seperti tab Non-Tender menggunakan data 'pagu'
+    # Format rupiah persis seperti tab Non-Tender
     raw_pagu = df_tender.get("pagu", pd.Series()).fillna(0.0)
 
     def format_rupiah(val):
