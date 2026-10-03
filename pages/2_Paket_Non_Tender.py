@@ -210,12 +210,11 @@ with tab2:
 with tab3:
   st.subheader("Rekapitulasi Paket Non-Tender & Peringatan Otomatis")
   if not df_nontender.empty:
-    # --- LOGIKA PENILAIAN OTOMATIS: SEHARI SETELAH TANGGAL KONTRAK ---
+
+    # Logika Evaluasi Otomatis (Mulai H+1 Kontrak)
     def evaluasi_berdasarkan_tanggal(row):
       status = str(row.get("status_kepatuhan", "Belum")).capitalize()
-      tgl_str = str(row.get("tanggal_tarik", "")).split(" ")[
-          0
-      ]  # Format YYYY-MM-DD
+      tgl_str = str(row.get("tanggal_tarik", "")).split(" ")[0]
 
       if status == "Sudah":
         return "✅ Selesai / Patuh"
@@ -224,7 +223,6 @@ with tab3:
         tgl_kontrak = datetime.strptime(tgl_str, "%Y-%m-%d")
         selisih_hari = (datetime.now() - tgl_kontrak).days
 
-        # Jika sudah >= 1 hari setelah tanggal kontrak dan status belum patuh
         if selisih_hari >= 1:
           return (
               f"🚨 URGENT: H+{selisih_hari} Kontrak (Wajib Kirim Notifikasi)"
@@ -274,7 +272,6 @@ with tab3:
         evaluasi_berdasarkan_tanggal, axis=1
     )
 
-    # Hitung jumlah paket yang memerlukan tindakan mendesak (mulai H+1 kontrak)
     total_urgent = df_tampil["Evaluasi_Otomatis"].str.contains("URGENT").sum()
     total_belum = (df_tampil["Status"].str.capitalize() == "Belum").sum()
 
@@ -282,8 +279,8 @@ with tab3:
       st.error(
           f"🚨 **Peringatan Sistem:** Ditemukan **{total_urgent} paket** dari"
           f" total **{total_belum} paket** belum patuh yang sudah melewati"
-          " tanggal penandatanganan kontrak (>= H+1). **Wajib segera dikirimi"
-          " pesan notifikasi!**"
+          " tanggal penandatanganan kontrak (>= H+1). **Wajib segera"
+          " dikirimi pesan notifikasi!**"
       )
     else:
       st.warning(
@@ -310,9 +307,7 @@ with tab3:
             "email_pemenang": "email_pemenang",
             "telp_pemenang": "telp_pemenang",
             "Status": "Status",
-            "Evaluasi_Otomatis": (
-                "Status Peringatan (Mulai Sehari Setelah Kontrak)"
-            ),
+            "Evaluasi_Otomatis": "Status Peringatan (H+1 Kontrak)",
         },
         use_container_width=True,
         hide_index=True,
