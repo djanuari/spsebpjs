@@ -36,7 +36,7 @@ jenis_pengadaan_opsi = [
 
 tahapan_opsi = ["Pemilihan Berlangsung", "Pemilihan Selesai"]
 
-# TAB IMPORT EXCEL: Menyimpan data secara aman ke kolom database yang ada
+# TAB IMPORT EXCEL
 with tab_import:
   st.subheader("📤 Unggah File Excel Rujukan Non-Tender")
   st.info(
@@ -70,7 +70,6 @@ with tab_import:
             tahapan_pengadaan = str(row.get("tahapan_pengadaan", "") or "")
             alamat = str(row.get("Alamat", "") or "")
 
-            # Mengemas atribut lengkap ke dalam kolom keterangan agar aman dan terbaca sempurna
             combined_ket = (
                 f"[SK]:{satuan_kerja}|[JP]:{jenis_pengadaan}|[TP]:{tahapan_pengadaan}|[AL]:{alamat}"
             )
@@ -334,7 +333,6 @@ with tab3:
       except Exception:
         return "🚨 Wajib Kirim Notifikasi (Belum Patuh)"
 
-    # Helper untuk mengekstrak data dari kolom keterangan
     def extract_val(text, tag):
       try:
         if not text or pd.isna(text):
@@ -420,6 +418,7 @@ with tab3:
           " 'Belum'."
       )
 
+    # Menampilkan tabel dengan format mata uang yang menggunakan pemisah titik (ribuan) dan koma (desimal)
     st.dataframe(
         df_tampil,
         column_config={
@@ -431,7 +430,7 @@ with tab3:
             "nama_pemenang": "nama_pemenang",
             "tanggal selesai pemilihan": "tanggal selesai pemilihan",
             "nilai_kontrak": st.column_config.NumberColumn(
-                "nilai_kontrak", format="Rp %.2f"
+                "nilai_kontrak", format="Rp {:,.2f}"
             ),
             "Alamat": "Alamat",
             "email": "email",
