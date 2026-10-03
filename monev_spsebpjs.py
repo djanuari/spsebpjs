@@ -1,23 +1,20 @@
+from api_connector import get_all_spse_data
 import pandas as pd
 import streamlit as st
 
-# Mengimpor fungsi dari api_connector.py
-from api_connector import get_all_spse_data, sinkronisasi_database_spse
-
-# Konfigurasi Halaman Utama
-st.set_page_config(
-    page_title="Monev SPSE & Kepatuhan BPJS", page_icon="📊", layout="wide"
-)
-
-# ---------------------------------------------------------
-# SISTEM LOGIN SEDERHANA
-# ---------------------------------------------------------
 if "logged_in" not in st.session_state:
   st.session_state["logged_in"] = False
 
+st.set_page_config(
+    page_title="Monev SPSE & Kepatuhan BPJS", page_icon="🏛️", layout="wide"
+)
+
+# --- HALAMAN UTAMA LOGIN & DASHBOARD ---
+st.title("🏛️ Sistem Monitoring Kepatuhan BPJS SPSE")
+st.markdown("---")
+
 if not st.session_state["logged_in"]:
-  st.title("🔐 Login Sistem Monitoring SPSE & BPJS")
-  st.markdown("---")
+  st.subheader("Silakan Login Terlebih Dahulu")
   with st.form("form_login"):
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
@@ -26,85 +23,82 @@ if not st.session_state["logged_in"]:
     if submit_login:
       if username == "admin" and password == "admin123":
         st.session_state["logged_in"] = True
-        st.success("Login berhasil! Memuat aplikasi...")
+        st.success("Login berhasil!")
         st.rerun()
       else:
-        st.error("Username atau Password salah!")
-  st.stop()
-
-# ---------------------------------------------------------
-# BERANDA UTAMA SETELAH LOGIN
-# ---------------------------------------------------------
-st.title("📊 Beranda Utama - Monitoring SPSE & Kepatuhan BPJS")
-st.markdown(
-    "Selamat datang di Panel Pengendalian Pengadaan Barang dan Jasa Pemerintah"
-    " Kota Kendari."
-)
-st.markdown("---")
-
-# Ambil data dari Supabase Cloud
-df_all = get_all_spse_data()
-
-# Hitung jumlah paket berdasarkan kategori
-if not df_all.empty and "kategori" in df_all.columns:
-  df_t_count = len(df_all[df_all["kategori"].str.lower() == "tender"])
-  df_nt_count = len(df_all[df_all["kategori"].str.lower() == "non-tender"])
-  df_ep_count = len(df_all[df_all["kategori"].str.lower() == "e-purchasing"])
+        st.error("Username atau password salah!")
 else:
-  df_t_count = 0
-  df_nt_count = 0
-  df_ep_count = 0
+  st.success("Anda berhasil masuk sebagai Administrator (Terhubung ke Cloud).")
 
-col_s1, col_s2, col_s3 = st.columns(3)
-col_s1.metric("Total Paket Tender", f"{df_t_count} Paket")
-col_s2.metric("Total Paket Non-Tender", f"{df_nt_count} Paket")
-col_s3.metric("Total Paket E-Purchasing", f"{df_ep_count} Paket")
+  # Ambil data dari Supabase untuk menghitung statistik di beranda
+  df_all = get_all_spse_data()
 
-st.markdown("---")
+  total_tender = 0
+  total_nontender = 0
+  total_ep = 0
 
-# ---------------------------------------------------------
-# SINKRONISASI API SPSE
-# ---------------------------------------------------------
-st.subheader("🔄 Sinkronisasi Data Otomatis via API SPSE")
-st.markdown(
-    "Gunakan tombol di bawah untuk menarik pembaruan data paket pengadaan"
-    " terbaru langsung ke database Supabase Cloud."
-)
+  if not df_all.empty and "kategori" in df_all.columns:
+    total_tender = len(
+        df_all[df_all["kategori"].str.lower() == "tender"]
+    )
+    total_nontender = len(
+        df_all[df_all["kategori"].str.lower() == "non-tender"]
+    )
+    total_ep = len(
+        df_all[df_all["kategori"].str.lower() == "e-purchasing"]
+    )
 
-if st.button(
-    "🔄 Tarik Data Terbaru via API SPSE", type="primary", key="btn_tarik_api"
-):
-  with st.spinner("Sedang memproses sinkronisasi data ke cloud..."):
-    jumlah_data = sinkronisasi_database_spse()
+  # Tampilan Statistik Ringkasan di Beranda
+  col1, col2, col3 = st.columns(3)
+  col1.metric("Total Paket Tender", f"{total_tender} Paket")
+  col2.metric("Total Paket Non-Tender", f"{total_nontender} Paket")
+  col3.metric("Total Paket E-Purchasing", f"{total_ep} Paket")
 
-    if jumlah_data > 0:
-      st.success(
-          f"✅ Berhasil! Sebanyak **{jumlah_data} data paket** diperbarui ke"
-          " cloud."
-      )
-      st.session_state["sync_success"] = True
-    else:
-      st.warning("⚠️ Sinkronisasi selesai, tidak ada data baru.")
-      st.session_state["sync_success"] = False
-
-if st.session_state.get("sync_success", False):
   st.markdown("---")
-  try:
-    df_fresh = get_all_spse_data()
-    if not df_fresh.empty:
-      csv_data = df_fresh.to_csv(index=False).encode("utf-8")
-      st.download_button(
-          label="📥 Unduh Data ke Format CSV (.csv)",
-          data=csv_data,
-          file_name="Data_SPSE_Cloud.csv",
-          mime="text/csv",
-          type="secondary",
-      )
-  except Exception as e:
-    st.error(f"Gagal menyiapkan unduhan: {e}")
+  st.subheader("🔄 Sinkronisasi Data Otomatis via API SPSE")
+  st.markdown(
+      "Gunakan tombol di bawah untuk menarik pembaruan data paket pengadaan"
+      " terbaru langsung ke database Supabase Cloud."
+  )
 
-st.markdown("---")
-st.markdown(
-    "💡 *Silakan pilih menu di sidebar untuk melihat detail Tender, Non-Tender,"
-    " atau E-Purchasing.*"
-)
+  if st.button("🔄 Tarik Data Terbaru via API SPSE", type="primary"):
+    st.info("Fitur sinkronisasi API SPSE sedang berjalan...")
+
+  # --- FITUR BACKUP DATABASE DI HALAMAN UTAMA ---
+  st.markdown("---")
+  st.subheader("💾 Backup & Ekspor Seluruh Database Cloud")
+  st.markdown(
+      "Gunakan tombol di bawah untuk mencadangkan seluruh data pengadaan"
+      " (Tender, Non-Tender, dan E-Purchasing) langsung dari database Supabase"
+      " ke format CSV."
+  )
+
+  if not df_all.empty:
+    csv_backup = df_all.to_csv(index=False).encode("utf-8")
+    nama_file_backup = (
+        f"Backup_Database_SPSE_BPJS_{pd.Timestamp.today().strftime('%Y-%m-%d')}.csv"
+    )
+
+    st.download_button(
+        label="📥 Unduh / Backup Seluruh Database ke CSV",
+        data=csv_backup,
+        file_name=nama_file_backup,
+        mime="text/csv",
+        type="primary",
+    )
+  else:
+    st.info("Belum ada data di dalam database cloud untuk dicadangkan.")
+
+  st.markdown("---")
+  st.markdown("""
+        ### 📂 Petunjuk Navigasi Menu:
+        Silakan pilih menu di **sidebar (sebelah kiri)** untuk mengelola:
+        - **Paket Tender**
+        - **Paket Non Tender**
+        - **E Purchasing**
+        - **Import Data SPSE & Laporan**
+    """)
+
+  if st.button("🚪 Keluar (Logout)", type="secondary"):
+    st.session_state["logged_in"] = False
+    st.rerun()
