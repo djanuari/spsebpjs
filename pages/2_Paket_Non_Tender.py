@@ -188,7 +188,7 @@ with tab2:
             " permanen?"
         )
         if st.button(
-            f"🗑️ Hapus Paket Non-Tender ({kode_pilih})",
+            f"🗑️️ Hapus Paket Non-Tender ({kode_pilih})",
             type="secondary",
             key=f"del_nt_{kode_pilih}",
         ):
@@ -210,7 +210,6 @@ with tab2:
 with tab3:
   st.subheader("Rekapitulasi Paket Non-Tender & Peringatan Otomatis")
   if not df_nontender.empty:
-    # Memetakan kolom database Supabase ke format tabel tampilan yang diinginkan
     df_tampil = pd.DataFrame()
     df_tampil["kode_nontender"] = df_nontender.get("id_paket", "")
     df_tampil["nama_nontender"] = df_nontender.get("nama_paket", "")
@@ -287,7 +286,8 @@ with tab3:
     )
 
     with st.expander(
-        "⚙️ Konfigurasi & Kirim Pesan Otomatis ke Pemenang", expanded=True
+        "⚙️ Konfigurasi & Kirim Pesan Otomatis (Pemenang & PIC BPJS)",
+        expanded=True,
     ):
       col_smtp1, col_smtp2 = st.columns(2)
       smtp_email = col_smtp1.text_input(
@@ -297,6 +297,19 @@ with tab3:
       )
       smtp_pass = col_smtp2.text_input(
           "Password / App Password Email", type="password", key="nt_smtp_pass"
+      )
+
+      st.markdown("---")
+      col_pic1, col_pic2 = st.columns(2)
+      email_pic = col_pic1.text_input(
+          "Email PIC BPJS",
+          value="pic.bpjs@kendarikota.go.id",
+          key="nt_pic_email",
+      )
+      hp_pic = col_pic2.text_input(
+          "No. WhatsApp PIC BPJS (628...)",
+          value="6281111222233",
+          key="nt_pic_hp",
       )
 
       list_opsi_nt = (
@@ -330,6 +343,7 @@ with tab3:
               f" `{email_tujuan}`\n- No. WhatsApp: `{telp_tujuan}`"
           )
 
+          # Pesan untuk Pemenang
           body_email_nt = f"""Kepada Yth. Pimpinan {pemenang},
 
 Sehubungan dengan penetapan pemenang untuk paket Non-Tender {row_n.get('nama_paket', '')} (Kode: {kode_pilih_nt}), sesuai dengan Peraturan Walikota Kendari dan MoU antara Pemerintah Kota Kendari, Kejaksaan Negeri Kendari dan BPJS, diharapkan agar Saudara segera menunaikan kewajiban Saudara terkait BPJS Ketenagakerjaan.
@@ -339,14 +353,39 @@ Dinas Tenaga Kerja dan Perindustrian Kota Kendari"""
 
           wa_text_nt = f"Halo {pemenang},\n\nSehubungan dengan penetapan pemenang untuk paket Non-Tender {row_n.get('nama_paket', '')} (Kode: {kode_pilih_nt}), sesuai dengan Peraturan Walikota Kendari dan MoU antara Pemerintah Kota Kendari, Kejaksaan Negeri Kendari dan BPJS, diharapkan agar Saudara segera menunaikan kewajiban Saudara terkait BPJS Ketenagakerjaan.\n\nHormat kami,\nDinas Tenaga Kerja dan Perindustrian Kota Kendari"
 
-          with st.expander("📄 Pratinjau Pesan Email & WhatsApp"):
-            st.text_area("Teks Email:", value=body_email_nt, height=120)
-            st.text_area("Teks WA:", value=wa_text_nt, height=120)
+          # Pesan untuk PIC BPJS
+          body_email_pic = f"""Kepada Yth. Tim PIC BPJS,
 
-          col_btn1, col_btn2 = st.columns(2)
+Berikut disampaikan laporan pemenang paket Non-Tender yang memerlukan verifikasi kepatuhan BPJS:
+- Kode Paket: {kode_pilih_nt}
+- Nama Paket: {row_n.get('nama_paket', '')}
+- Nama Pemenang: {pemenang}
+- Status BPJS: {row_n.get('status_kepatuhan', 'Belum')}
 
-          with col_btn1:
-            if st.button("📧 Kirim Email ke Pemenang", key="btn_send_email_nt"):
+Mohon kiranya dapat ditindaklanjuti sesuai ketentuan yang berlaku.
+
+Hormat kami,
+Admin SPSE Pemerintah Kota Kendari"""
+
+          wa_text_pic = f"Halo Tim PIC BPJS,\n\nBerikut disampaikan laporan pemenang paket Non-Tender untuk ditindaklanjuti:\n- Kode: {kode_pilih_nt}\n- Paket: {row_n.get('nama_paket', '')}\n- Pemenang: {pemenang}\n- Status BPJS: {row_n.get('status_kepatuhan', 'Belum')}\n\nTerima kasih."
+
+          with st.expander("📄 Pratinjau Pesan (Pemenang & PIC BPJS)"):
+            st.markdown("**1. Pesan untuk Pemenang:**")
+            st.text_area("Teks Email Pemenang:", value=body_email_nt, height=100)
+            st.text_area("Teks WA Pemenang:", value=wa_text_nt, height=100)
+            st.markdown("---")
+            st.markdown("**2. Pesan untuk PIC BPJS:**")
+            st.text_area("Teks Email PIC BPJS:", value=body_email_pic, height=100)
+            st.text_area("Teks WA PIC BPJS:", value=wa_text_pic, height=100)
+
+          st.markdown("### 🚀 Aksi Pengiriman Pesan")
+          col_a1, col_a2 = st.columns(2)
+
+          with col_a1:
+            st.markdown("#### Kirim ke Pemenang")
+            if st.button(
+                "📧 Kirim Email ke Pemenang", key="btn_send_email_nt"
+            ):
               if not email_tujuan or "@" not in email_tujuan:
                 st.error("Email pemenang belum valid atau kosong!")
               else:
@@ -365,14 +404,13 @@ Dinas Tenaga Kerja dan Perindustrian Kota Kendari"""
                   server.sendmail(smtp_email, email_tujuan, msg.as_string())
                   server.quit()
                   st.success(
-                      f"Email berhasil dikirim ke {email_tujuan}!"
+                      f"Email berhasil dikirim ke Pemenang ({email_tujuan})!"
                   )
                 except Exception as e:
                   st.error(
                       f"Gagal mengirim email (pastikan App Password benar): {e}"
                   )
 
-          with col_btn2:
             if telp_tujuan and telp_tujuan != "Belum ada nomor WA terdaftar":
               encoded_wa = urllib.parse.quote(wa_text_nt)
               wa_url = f"https://wa.me/{telp_tujuan}?text={encoded_wa}"
@@ -380,11 +418,54 @@ Dinas Tenaga Kerja dan Perindustrian Kota Kendari"""
                   f'<a href="{wa_url}" target="_blank"><button'
                   ' style="background-color:#25D366; color:white; border:none;'
                   " padding:10px 20px; border-radius:5px; cursor:pointer; width:"
-                  '100%; font-weight:bold;">💬 Kirim Pesan via'
-                  " WhatsApp</button></a>",
+                  '100%; font-weight:bold; margin-top:5px;">💬 Kirim WhatsApp ke'
+                  " Pemenang</button></a>",
                   unsafe_allow_html=True,
               )
             else:
-              st.warning("Nomor WhatsApp belum tersedia untuk paket ini.")
+              st.warning("Nomor WhatsApp pemenang belum tersedia.")
+
+          with col_a2:
+            st.markdown("#### Kirim ke PIC BPJS")
+            if st.button("📧 Kirim Email ke PIC BPJS", key="btn_send_email_pic"):
+              if not email_pic or "@" not in email_pic:
+                st.error("Email PIC BPJS belum valid atau kosong!")
+              else:
+                try:
+                  msg_pic = MIMEMultipart()
+                  msg_pic["From"] = smtp_email
+                  msg_pic["To"] = email_pic
+                  msg_pic["Subject"] = (
+                      f"Laporan Kepatuhan BPJS Non-Tender - {kode_pilih_nt}"
+                  )
+                  msg_pic.attach(MIMEText(body_email_pic, "plain"))
+
+                  server = smtplib.SMTP("smtp.gmail.com", 587)
+                  server.starttls()
+                  server.login(smtp_email, smtp_pass)
+                  server.sendmail(smtp_email, email_pic, msg_pic.as_string())
+                  server.quit()
+                  st.success(
+                      f"Email berhasil dikirim ke PIC BPJS ({email_pic})!"
+                  )
+                except Exception as e:
+                  st.error(
+                      f"Gagal mengirim email ke PIC (pastikan App Password"
+                      f" benar): {e}"
+                  )
+
+            if hp_pic:
+              encoded_wa_pic = urllib.parse.quote(wa_text_pic)
+              wa_url_pic = f"https://wa.me/{hp_pic}?text={encoded_wa_pic}"
+              st.markdown(
+                  f'<a href="{wa_url_pic}" target="_blank"><button'
+                  ' style="background-color:#25D366; color:white; border:none;'
+                  " padding:10px 20px; border-radius:5px; cursor:pointer; width:"
+                  '100%; font-weight:bold; margin-top:5px;">💬 Kirim WhatsApp ke'
+                  " PIC BPJS</button></a>",
+                  unsafe_allow_html=True,
+              )
+            else:
+              st.warning("Nomor WhatsApp PIC BPJS belum diisi.")
   else:
     st.info("Belum ada data Non-Tender tersimpan di database cloud.")
