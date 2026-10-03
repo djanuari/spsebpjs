@@ -39,7 +39,10 @@ tahapan_opsi = ["Pemilihan Berlangsung", "Pemilihan Selesai"]
 # TAB IMPORT EXCEL
 with tab_import:
   st.subheader("📤 Unggah File Excel Rujukan Tender")
-  st.info("Unggah file Excel SPSE Anda di sini.")
+  st.info(
+      "Unggah file Excel Anda di sini. Sistem akan membaca kolom 'total_nilai'"
+      " dan 'nama_penyedia' secara tepat."
+  )
 
   uploaded_excel = st.file_uploader(
       "Pilih file Excel (.xlsx)", type=["xlsx", "xls"], key="tender_excel"
@@ -61,13 +64,7 @@ with tab_import:
         success_count = 0
         with st.spinner("Sedang menyinkronkan data Tender ke Supabase..."):
           for _, row in df_import.iterrows():
-            # Ambil kode tender secara aman
-            kode = str(
-                row.get("kode_tender", "")
-                or row.get("kode_nontender", "")
-                or row.get("id_paket", "")
-                or ""
-            ).strip()
+            kode = str(row.get("kode_tender", "") or "").strip()
             if not kode or kode.lower() == "nan":
               continue
 
@@ -82,72 +79,36 @@ with tab_import:
                 f"[SK]:{satuan_kerja}|[JP]:{jenis_pengadaan}|[TP]:{tahapan_pengadaan}|[AL]:{alamat}"
             )
 
-            # Ambil Nilai Kontrak / Pagu
-            val_nilai = 0.0
-            for col_n in ["nilai_kontrak", "pagu", "nilai_pagu", "hps"]:
-              if col_n in row and pd.notna(row[col_n]):
-                try:
-                  raw_val = row[col_n]
-                  if isinstance(raw_val, (int, float)):
-                    val_nilai = float(raw_val)
-                  else:
-                    clean_s = (
-                        str(raw_val)
-                        .replace("Rp", "")
-                        .replace(".", "")
-                        .replace(",", ".")
-                        .strip()
-                    )
-                    val_nilai = float(clean_s)
-                  if val_nilai > 0:
-                    break
-                except Exception:
-                  pass
+            # AMBIL NILAI DARI KOLOM 'total_nilai' DI EXCEL
+            val_nilai = float(row.get("total_nilai", 0.0) or 0.0)
 
-            # Ambil Nama Pemenang
-            val_pemenang = "-"
-            for col_p in ["nama_pemenang", "pemenang", "penyedia"]:
-              if col_p in row and pd.notna(row[col_p]):
-                p_str = str(row[col_p]).strip()
-                if p_str and p_str.lower() != "nan" and p_str != "-":
-                  val_pemenang = p_str
-                  break
+            # AMBIL NAMA PEMENANG DARI KOLOM 'nama_penyedia' DI EXCEL
+            val_pemenang = str(
+                row.get("nama_penyedia", "")
+                or row.get("nama_pemenang", "")
+                or "-"
+            ).strip()
+            if not val_pemenang or val_pemenang.lower() == "nan":
+              val_pemenang = "-"
 
-            # Ambil Tanggal Selesai Pemilihan
-            tgl_val = ""
-            for col_t in ["tanggal selesai pemilihan", "tanggal_tarik", "tgl"]:
-              if col_t in row and pd.notna(row[col_t]):
-                t_str = str(row[col_t]).strip()
-                if t_str and t_str.lower() != "nan":
-                  tgl_val = t_str
-                  break
+            # AMBIL TANGGAL SELESAI PEMILIHAN
+            val_tgl = str(row.get("tanggal selesai pemilihan", "") or "").strip()
+            if val_tgl.lower() == "nan":
+              val_tgl = ""
 
             data_row = {
                 "id_paket": kode,
-                "nama_paket": str(
-                    row.get("nama_tender", "")
-                    or row.get("nama_nontender", "")
-                    or row.get("nama_paket", "")
-                    or "-"
-                ),
+                "nama_paket": str(row.get("nama_tender", "") or "-"),
                 "kategori": "Tender",
-                "pagu": val_nilai,
+                "pagu": val_nilai,  # Disimpan ke kolom 'pagu' di database Supabase
                 "hps": 0.0,
                 "pemenang": val_pemenang,
                 "status_kepatuhan": str(
                     row.get("status_kepatuhan", "Belum") or "Belum"
                 ),
-                "tanggal_tarik": tgl_val,
-                "email_pemenang": str(
-                    row.get("email", "")
-                    or row.get("email_pemenang", "")
-                    or ""
-                ),
-                "telp_pemenang": str(
-                    row.get("telepon", "")
-                    or row.get("telp_pemenang", "")
-                    or ""
-                ),
+                "tanggal_tarik": val_tgl,
+                "email_pemenang": str(row.get("email", "") or ""),
+                "telp_pemenang": str(row.get("telepon", "") or ""),
                 "keterangan": combined_ket,
             }
             if upsert_spse_data(data_row):
@@ -314,7 +275,7 @@ with tab2:
             " permanen?"
         )
         if st.button(
-            f"🗑️ Hapus Paket Tender ({kode_pilih})",
+            f"🗑️️ Hapus Paket Tender ({kode_pilih})",
             type="secondary",
             key=f"del_t_{kode_pilih}",
         ):
@@ -387,7 +348,7 @@ with tab3:
               f"🚨 URGENT: H+{selisih_hari} Selesai (Wajib Kirim Notifikasi)"
           )
         elif selisih_hari == 0:
-          return "⚠️ Hari H Selesai Pemilihan"
+          return "⚠️️ Hari H Selesai Pemilihan"
         else:
           return "📅 Jadwal Mendatang"
       except Exception:
