@@ -175,7 +175,7 @@ with tab2:
               )
               st.rerun()
 
-        # Sistem Penghapusan Paket dari Database Supabase
+        # Sistem Penghapusan Paket Satuan dari Database Supabase
         st.markdown("---")
         st.warning(
             "⚠️ Ingin menghapus data paket ini dari database cloud secara"
@@ -197,6 +197,38 @@ with tab2:
             st.rerun()
           except Exception as e:
             st.error(f"Gagal menghapus data: {e}")
+
+    # --- FITUR HAPUS SEMUA DATA NON-TENDER ---
+    st.markdown("---")
+    st.error("🚨 Zona Bahaya: Hapus Seluruh Data Non-Tender")
+    with st.expander("⚠️️ Klik untuk opsi Hapus Semua Data Non-Tender"):
+      st.warning(
+          "Tindakan ini akan menghapus **seluruh** data Non-Tender dari"
+          " database cloud secara permanen dan tidak dapat dikembalikan."
+      )
+      konfirmasi_hapus_semua = st.checkbox(
+          "Saya yakin ingin menghapus seluruh data Non-Tender",
+          key="chk_hapus_semua_nt",
+      )
+      if st.button(
+          "🗑️ Hapus SEMUA Data Non-Tender Sekarang", type="primary"
+      ):
+        if konfirmasi_hapus_semua:
+          try:
+            supabase.table("tabel_spse_bpjs").delete().eq(
+                "kategori", "Non-Tender"
+            ).execute()
+            st.success(
+                "Seluruh data Non-Tender berhasil dihapus dari database cloud!"
+            )
+            st.rerun()
+          except Exception as e:
+            st.error(f"Gagal menghapus seluruh data: {e}")
+        else:
+          st.error(
+              "Mohon centang kotak konfirmasi terlebih dahulu sebelum"
+              " menghapus semua data."
+          )
   else:
     st.info("Belum ada data Non-Tender tersimpan di cloud.")
 
