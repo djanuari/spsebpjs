@@ -72,7 +72,6 @@ with tab1:
       if kode_nontender.strip() == "":
         st.error("kode_nontender wajib diisi sebagai pengenal unik!")
       else:
-        # Menyimpan langsung ke kolom database secara murni sesuai struktur Excel
         data_baru = {
             "id_paket": kode_nontender.strip(),
             "nama_paket": nama_nontender,
@@ -284,28 +283,40 @@ with tab3:
 
     df_tampil = pd.DataFrame()
 
-    # Memetakan langsung kolom secara presisi sesuai file Excel Anda
-    df_tampil["kode_nontender"] = df_nontender.get("id_paket", "")
-    df_tampil["nama_nontender"] = df_nontender.get("nama_paket", "")
-    df_tampil["jenis_pengadaan"] = df_nontender.get(
-        "jenis_pengadaan", "-"
-    ).fillna("-")
-    df_tampil["satuan_kerja"] = df_nontender.get("satuan_kerja", "-").fillna(
+    # Memetakan data dan membersihkan nilai kosong menggunakan fillna pada level Series Pandas
+    df_tampil["kode_nontender"] = df_nontender.get("id_paket", pd.Series()).fillna(
         "-"
     )
+    df_tampil["nama_nontender"] = df_nontender.get(
+        "nama_paket", pd.Series()
+    ).fillna("-")
+    df_tampil["jenis_pengadaan"] = df_nontender.get(
+        "jenis_pengadaan", pd.Series()
+    ).fillna("-")
+    df_tampil["satuan_kerja"] = df_nontender.get(
+        "satuan_kerja", pd.Series()
+    ).fillna("-")
     df_tampil["tahapan_pengadaan"] = df_nontender.get(
-        "tahapan_pengadaan", "-"
+        "tahapan_pengadaan", pd.Series()
     ).fillna("-")
-    df_tampil["nama_pemenang"] = df_nontender.get("pemenang", "-").fillna("-")
+    df_tampil["nama_pemenang"] = df_nontender.get(
+        "pemenang", pd.Series()
+    ).fillna("-")
     df_tampil["tanggal selesai pemilihan"] = df_nontender.get(
-        "tanggal_tarik", "-"
+        "tanggal_tarik", pd.Series()
     ).fillna("-")
-    df_tampil["nilai_kontrak"] = df_nontender.get("pagu", 0.0).fillna(0.0)
-    df_tampil["Alamat"] = df_nontender.get("alamat", "-").fillna("-")
-    df_tampil["email"] = df_nontender.get("email_pemenang", "-").fillna("-")
-    df_tampil["telepon"] = df_nontender.get("telp_pemenang", "-").fillna("-")
+    df_tampil["nilai_kontrak"] = df_nontender.get("pagu", pd.Series()).fillna(
+        0.0
+    )
+    df_tampil["Alamat"] = df_nontender.get("alamat", pd.Series()).fillna("-")
+    df_tampil["email"] = df_nontender.get(
+        "email_pemenang", pd.Series()
+    ).fillna("-")
+    df_tampil["telepon"] = df_nontender.get("telp_pemenang", pd.Series()).fillna(
+        "-"
+    )
     df_tampil["status_kepatuhan"] = df_nontender.get(
-        "status_kepatuhan", "Belum"
+        "status_kepatuhan", pd.Series()
     ).fillna("Belum")
 
     df_tampil["Evaluasi_Otomatis"] = df_nontender.apply(
