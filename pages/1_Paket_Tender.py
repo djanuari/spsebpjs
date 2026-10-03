@@ -11,7 +11,7 @@ if not st.session_state.get("logged_in"):
   st.stop()
 
 st.set_page_config(
-    page_title="Paket Tender / Seleksi", page_icon="🏛️", layout="wide"
+    page_title="Paket Tender / Seleksi", page_icon="🏛️️", layout="wide"
 )
 
 st.title("🏛️ 1. Data Paket Tender / Seleksi & Kepatuhan BPJS")
@@ -21,7 +21,7 @@ tab_import, tab1, tab2, tab3 = st.tabs(
     [
         "📤 Impor Excel",
         "➕ Tambah Data",
-        "✏️️ Edit / Hapus Data",
+        "✏️ Edit / Hapus Data",
         "📋 Daftar & Laporan",
     ]
 )
@@ -36,12 +36,13 @@ jenis_pengadaan_opsi = [
 
 tahapan_opsi = ["Pemilihan Berlangsung", "Pemilihan Selesai"]
 
-# TAB IMPORT EXCEL: Sinkronisasi langsung dari file Excel Tender
+# TAB IMPORT EXCEL: Menyinkronkan seluruh kolom secara presisi
 with tab_import:
   st.subheader("📤 Unggah File Excel Rujukan Tender")
   st.info(
-      "Unggah file Excel Anda di sini. Sistem akan otomatis membaca seluruh"
-      " kolom dan menyimpannya ke database untuk kategori Tender."
+      "Unggah file Excel Anda di sini. Sistem akan otomatis memetakan"
+      " `nama_pemenang`, `nilai_kontrak`, `satuan_kerja`, `jenis_pengadaan`,"
+      " dan atribut lainnya secara presisi ke database."
   )
 
   uploaded_excel = st.file_uploader(
@@ -397,14 +398,15 @@ with tab3:
     )
     df_tampil["Alamat"] = ket_series.apply(lambda x: extract_val(x, "AL"))
 
-    df_tampil["nama_pemenang"] = df_tender.get("pemenang", pd.Series()).fillna(
-        "-"
+    # Memastikan nama pemenang diambil langsung dari kolom database 'pemenang'
+    df_tampil["nama_pemenang"] = (
+        df_tender.get("pemenang", pd.Series()).fillna("-").replace("", "-")
     )
     df_tampil["tanggal selesai pemilihan"] = df_tender.get(
         "tanggal_tarik", pd.Series()
     ).fillna("-")
 
-    # Format rupiah dengan titik ribuan dan koma desimal
+    # Format rupiah dengan titik ribuan dan koma desimal untuk nilai kontrak
     raw_pagu = df_tender.get("pagu", pd.Series()).fillna(0.0)
 
 
