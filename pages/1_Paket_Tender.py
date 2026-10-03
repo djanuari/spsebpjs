@@ -39,10 +39,7 @@ tahapan_opsi = ["Pemilihan Berlangsung", "Pemilihan Selesai"]
 # TAB IMPORT EXCEL
 with tab_import:
   st.subheader("📤 Unggah File Excel Rujukan Tender")
-  st.info(
-      "Unggah file Excel Anda di sini. Sistem akan membaca kolom nilai_kontrak"
-      " dan nama_pemenang secara presisi ke database."
-  )
+  st.info("Unggah file Excel Anda di sini.")
 
   uploaded_excel = st.file_uploader(
       "Pilih file Excel (.xlsx)", type=["xlsx", "xls"], key="tender_excel"
@@ -79,45 +76,34 @@ with tab_import:
                 f"[SK]:{satuan_kerja}|[JP]:{jenis_pengadaan}|[TP]:{tahapan_pengadaan}|[AL]:{alamat}"
             )
 
-            # AMBIL NILAI KONTRAK DARI EXCEL
+            # PEMBACAAN NILAI KONTRAK YANG AMAN DAN PRESISI
             val_nilai = 0.0
-            for col_n in ["nilai_kontrak", "total_nilai", "pagu", "nilai_pagu"]:
-              if col_n in row and pd.notna(row[col_n]):
-                try:
-                  raw_v = row[col_n]
-                  if isinstance(raw_v, (int, float)):
-                    val_nilai = float(raw_v)
-                  else:
-                    clean_s = (
-                        str(raw_v)
-                        .replace("Rp", "")
-                        .replace(".", "")
-                        .replace(",", ".")
-                        .strip()
-                    )
-                    val_nilai = float(clean_s)
-                  if val_nilai > 0:
-                    break
-                except Exception:
-                  pass
+            raw_val = row.get("nilai_kontrak", 0.0)
+            if pd.notna(raw_val):
+              try:
+                if isinstance(raw_val, (int, float)):
+                  val_nilai = float(raw_val)
+                else:
+                  clean_s = (
+                      str(raw_val)
+                      .replace("Rp", "")
+                      .replace(".", "")
+                      .replace(",", ".")
+                      .strip()
+                  )
+                  val_nilai = float(clean_s)
+              except Exception:
+                val_nilai = 0.0
 
-            # AMBIL NAMA PEMENANG DARI EXCEL
-            val_pemenang = "-"
-            for col_p in [
-                "nama_pemenang",
-                "nama_penyedia",
-                "pemenang",
-                "penyedia",
-            ]:
-              if col_p in row and pd.notna(row[col_p]):
-                p_str = str(row[col_p]).strip()
-                if p_str and p_str.lower() != "nan" and p_str != "-":
-                  val_pemenang = p_str
-                  break
+            # PEMBACAAN NAMA PEMENANG
+            val_pemenang = str(row.get("nama_pemenang", "") or "-").strip()
+            if not val_pemenang or val_pemenang.lower() == "nan":
+              val_pemenang = "-"
 
+            # PEMBACAAN TANGGAL SELESAI
             val_tgl = str(row.get("tanggal selesai pemilihan", "") or "").strip()
-            if val_tgl.lower() == "nan":
-              val_tgl = ""
+            if val_tgl.lower() == "nan" or not val_tgl:
+              val_tgl = "-"
 
             data_row = {
                 "id_paket": kode,
@@ -298,7 +284,7 @@ with tab2:
             " permanen?"
         )
         if st.button(
-            f"🗑️ Hapus Paket Tender ({kode_pilih})",
+            f"🗑️️ Hapus Paket Tender ({kode_pilih})",
             type="secondary",
             key=f"del_t_{kode_pilih}",
         ):
@@ -322,8 +308,7 @@ with tab2:
           " cloud secara permanen."
       )
       konfirmasi_hapus_semua = st.checkbox(
-          "Saya yakin ingin menghapus seluruh data Tender",
-          key="chk_hapus_semua_t",
+          "I want to delete all tender data", key="chk_hapus_semua_t"
       )
       if st.button(
           "🗑️ Hapus SEMUA Data Tender Sekarang",
@@ -424,6 +409,8 @@ with tab3:
     def format_rupiah(val):
       try:
         num = float(val)
+        if num == 0:
+          return "Rp 0,00"
         formatted_num = f"{num:,.2f}"
         return (
             "Rp "
