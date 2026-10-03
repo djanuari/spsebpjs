@@ -3,7 +3,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import smtplib
 import urllib.parse
-from api_connector import get_all_spse_data, upsert_spse_data, supabase
+from api_connector import get_all_spse_data, supabase, upsert_spse_data
 import pandas as pd
 import streamlit as st
 
@@ -19,7 +19,7 @@ st.title("🛒 3. Data E-Purchasing / Mini Kompetisi & Kepatuhan BPJS")
 st.markdown("---")
 
 tab1, tab2, tab3 = st.tabs(
-    ["➕ Tambah Data", "✏️ Edit / Perbarui Data", "📋 Daftar & Laporan"]
+    ["➕ Tambah Data", "✏️ Edit / Hapus Data", "📋 Daftar & Laporan"]
 )
 
 jenis_pengadaan_opsi = [
@@ -88,6 +88,8 @@ with tab1:
             "pemenang": nama_pemenang,
             "status_kepatuhan": status_bpjs,
             "tanggal_tarik": str(tanggal_penetapan),
+            "email_pemenang": email_pemenang,
+            "telp_pemenang": telp_pemenang,
             "keterangan": f"Jenis: {jenis_pengadaan} | Kontrak: Rp {nilai_kontrak:,.2f}",
         }
         if upsert_spse_data(data_baru):
@@ -146,6 +148,17 @@ with tab2:
           u_bpjs = st.selectbox(
               "Status BPJS", ["Belum", "Sudah"], index=stat_idx
           )
+
+          uc5, uc6 = st.columns(2)
+          u_email = uc5.text_input(
+              "Email Pemenang",
+              value=str(r.get("email_pemenang", "") or ""),
+          )
+          u_telp = uc6.text_input(
+              "Nomor Telepon Pemenang",
+              value=str(r.get("telp_pemenang", "") or ""),
+          )
+
           u_ket = st.text_area(
               "Keterangan / Satuan Kerja",
               value=str(r.get("keterangan", "") or ""),
@@ -165,6 +178,8 @@ with tab2:
                 "pemenang": u_pemenang,
                 "status_kepatuhan": u_bpjs,
                 "tanggal_tarik": str(r.get("tanggal_tarik", "")),
+                "email_pemenang": u_email,
+                "telp_pemenang": u_telp,
                 "keterangan": u_ket,
             }
             if upsert_spse_data(data_update):
@@ -174,14 +189,10 @@ with tab2:
               )
               st.rerun()
 
-        # Tombol Hapus Data (Diletakkan di luar form agar aman)
+        # Tombol Hapus Data Satuan
         st.markdown("---")
-        st.warning(
-            "⚠️ Ingin menghapus data paket ini dari database cloud secara"
-            " permanen?"
-        )
         if st.button(
-            f"🗑️️ Hapus Paket E-Purchasing ({kode_pilih})",
+            f"🗑️ Hapus Paket E-Purchasing ({kode_pilih})",
             type="secondary",
             key=f"del_ep_{kode_pilih}",
         ):
@@ -197,36 +208,12 @@ with tab2:
           except Exception as e:
             st.error(f"Gagal menghapus data: {e}")
   else:
-    st.info("Belum ada data E-Purchasing tersimpan di cloud untuk diedit.")
+    st.info("Belum ada data E-Purchasing tersimpan di cloud.")
 
 # TAB 3: LAPORAN & NOTIFIKASI
 with tab3:
   st.subheader("Rekapitulasi Paket E-Purchasing & Peringatan Otomatis")
-
   if not df_ep.empty:
-    hari_ini = datetime.now().date()
-
-
-    def cek_status_notif_ep(row):
-      try:
-        tgl_val = row.get("tanggal_tarik")
-        if not tgl_val:
-          return "⏳ Menunggu Jadwal"
-        tgl_str = str(tgl_val).split()[0]
-        tgl_penetapan = datetime.strptime(tgl_str, "%Y-%m-%d").date()
-        status = str(row.get("status_kepatuhan", "Belum")).capitalize()
-
-        if tgl_penetapan <= hari_ini and status == "Belum":
-          return "🚨 Wajib Kirim Notifikasi (Jatuh Tempo)"
-        elif status == "Sudah":
-          return "✅ Selesai / Patuh"
-        else:
-          return "⏳ Menunggu Jadwal"
-      except:
-        return "⏳ Menunggu Jadwal"
-
-
-    df_ep["status_peringatan"] = df_ep.apply(cek_status_notif_ep, axis=1)
     st.dataframe(df_ep, use_container_width=True, hide_index=True)
 
     st.markdown("---")
@@ -238,78 +225,6 @@ with tab3:
         file_name="Laporan_Kepatuhan_BPJS_EPurchasing.csv",
         mime="text/csv",
         type="primary",
-        key="btn_download_ep_csv",
     )
-
-    st.markdown("---")
-    st.subheader(
-        "📨 Pusat Pengiriman Notifikasi (Email & WhatsApp) - E-Purchasing"
-    )
-
-    with st.expander(
-        "⚙️ Konfigurasi Pengirim & Kirim Pesan Notifikasi", expanded=True
-    ):
-      col_smtp1, col_smtp2 = st.columns(2)
-      smtp_email = col_smtp1.text_input(
-          "Email Instansi / Pengirim",
-          value="admin.spse@kendarikota.go.id",
-          key="ep_smtp_email",
-      )
-      smtp_pass = col_smtp2.text_input(
-          "Password / App Password Email", type="password", key="ep_smtp_pass"
-      )
-
-      col_pic1, col_pic2, col_pic3 = st.columns(3)
-      nama_pic = col_pic1.text_input(
-          "Nama PIC BPJS", value="Tim BPJS Kendari", key="ep_pic_nama"
-      )
-      email_pic = col_pic2.text_input(
-          "Email PIC BPJS", value="pic.bpjs@kendarikota.go.id", key="ep_pic_email"
-      )
-      hp_pic = col_pic3.text_input(
-          "No. WhatsApp PIC (628...)", value="6281111222233", key="ep_pic_hp"
-      )
-
-      st.markdown("---")
-
-      list_opsi_ep = (
-          df_ep["id_paket"].astype(str)
-          + " - "
-          + df_ep["nama_paket"].fillna("")
-      ).tolist()
-      pilihan_notif_ep = st.selectbox(
-          "Pilih Kode & Nama Paket E-Purchasing:", list_opsi_ep, key="ep_sel_notif"
-      )
-
-      if pilihan_notif_ep:
-        kode_pilih_ep = pilihan_notif_ep.split(" - ")[0]
-        matched_rows_ep = df_ep[df_ep["id_paket"].astype(str) == kode_pilih_ep]
-
-        if not matched_rows_ep.empty:
-          row_n = matched_rows_ep.iloc[0]
-          pemenang = row_n.get("pemenang", "Pemenang") or "Pemenang"
-          status = row_n.get("status_kepatuhan", "Belum")
-
-          if "Wajib Kirim" in str(row_n.get("status_peringatan", "")):
-            st.error(
-                "🚨 Status Paket Ini: **Jatuh Tempo (Wajib Kirim Notifikasi"
-                " BPJS)**"
-            )
-
-          body_email_ep = f"""Kepada Yth. Pimpinan {pemenang},
-
-Sehubungan dengan penetapan pemenang untuk paket E-Purchasing {row_n.get('nama_paket', '')} (Kode: {kode_pilih_ep}), sesuai dengan Peraturan Walikota Kendari dan MoU antara Pemerintah Kota Kendari, Kejaksaan Negeri Kendari dan BPJS, diharapkan agar Saudara segera menunaikan kewajiban Saudara terkait BPJS Ketenagakerjaan.
-
-Hormat kami,
-Dinas Tenaga Kerja dan Perindustrian Kota Kendari"""
-
-          wa_text_ep = f"Halo {pemenang},\n\nSehubungan dengan penetapan pemenang untuk paket E-Purchasing {row_n.get('nama_paket', '')} (Kode: {kode_pilih_ep}), sesuai dengan Peraturan Walikota Kendari dan MoU antara Pemerintah Kota Kendari, Kejaksaan Negeri Kendari dan BPJS, diharapkan agar Saudara segera menunaikan kewajiban Saudara terkait BPJS Ketenagakerjaan.\n\nHormat kami,\nDinas Tenaga Kerja dan Perindustrian Kota Kendari"
-
-          with st.expander("📄 Pratinjau Pesan Email & WhatsApp"):
-            st.text_area("Teks Email:", value=body_email_ep, height=120)
-            st.text_area("Teks WA:", value=wa_text_ep, height=120)
-
-          if st.button("📧 Kirim Email Uji Coba ke Sistem", key="btn_send_ep"):
-            st.success("Simulasi pengiriman email berhasil diproses!")
   else:
     st.info("Belum ada data E-Purchasing tersimpan di database cloud.")
