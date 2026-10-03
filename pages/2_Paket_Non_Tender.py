@@ -423,7 +423,7 @@ Berikut disampaikan monitoring kepatuhan BPJS paket Non-Tender (aktif mulai H+1 
 Mohon kiranya dapat diverifikasi dan ditindaklanjuti sesuai ketentuan yang berlaku.
 
 Hormat kami,
-Admin SPSE Pemerintah Kota Kendari"""
+Dinas Tenaga Kerja dan Perindustrian Kota Kendari"""
 
           wa_text_pic = f"Halo Tim PIC BPJS,\n\nBerikut monitoring kepatuhan paket Non-Tender (aktif mulai H+1 tanggal kontrak):\n- Kode: {kode_pilih_nt}\n- Paket: {row_n.get('nama_paket', '')}\n- Tgl Kontrak: {tgl_kontrak_val}\n- Pemenang: {pemenang}\n- Status BPJS: {status_pilih}\n\nTerima kasih."
 
