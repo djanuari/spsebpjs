@@ -76,13 +76,14 @@ with tab1:
             "id_paket": kode_paket.strip(),
             "nama_paket": nama_paket,
             "kategori": "Non-Tender",
-            "pagu": nilai_kontrak,
+            "pagu": nilai_kontrak,  # Disimpan di kolom pagu database
             "hps": 0.0,
             "pemenang": nama_pemenang,
             "status_kepatuhan": status_bpjs,
             "tanggal_tarik": str(tanggal_selesai),
             "email_pemenang": email,
             "telp_pemenang": telepon,
+            # Menyimpan detail lengkap dengan penanda jelas untuk diparsing ulang
             "keterangan": f"Satuan Kerja: {satuan_kerja} | Jenis: {jenis_pengadaan} | Tahapan: {tahapan_pengadaan} | Alamat: {alamat}",
         }
         if upsert_spse_data(data_baru):
@@ -175,7 +176,6 @@ with tab2:
               )
               st.rerun()
 
-        # Sistem Penghapusan Paket Satuan dari Database Supabase
         st.markdown("---")
         st.warning(
             "⚠️ Ingin menghapus data paket ini dari database cloud secara"
@@ -237,7 +237,6 @@ with tab3:
   st.subheader("Rekapitulasi Paket Non-Tender & Peringatan Otomatis")
   if not df_nontender.empty:
 
-    # Logika Evaluasi Otomatis (Mulai H+1 Tanggal Selesai/Kontrak)
     def evaluasi_berdasarkan_tanggal(row):
       status = str(row.get("status_kepatuhan", "Belum")).capitalize()
       tgl_str = str(row.get("tanggal_tarik", "")).split(" ")[0]
@@ -260,42 +259,42 @@ with tab3:
       except Exception:
         return "🚨 Wajib Kirim Notifikasi (Belum Patuh)"
 
+    # Fungsi bantu ekstraksi teks aman dari kolom keterangan
+    def extract_ket(text, key):
+      try:
+        if not text or key not in str(text):
+          return "-"
+        parts = str(text).split("|")
+        for p in parts:
+          if key in p:
+            return p.split(key)[1].strip()
+        return "-"
+      except Exception:
+        return "-"
+
     df_tampil = pd.DataFrame()
-    # Menyesuaikan nama kolom agar persis dengan formulir input di Tab 1
     df_tampil["Kode Paket"] = df_nontender.get("id_paket", "")
     df_tampil["Nama Paket"] = df_nontender.get("nama_paket", "")
+
+    # Ekstraksi akurat dari kolom keterangan database
     df_tampil["Jenis Pengadaan"] = df_nontender.get("keterangan", "").apply(
-        lambda x: (
-            str(x).split("Jenis:")[1].split("|")[0].strip()
-            if "Jenis:" in str(x)
-            else "-"
-        )
+        lambda x: extract_ket(x, "Jenis:")
     )
     df_tampil["Satuan Kerja"] = df_nontender.get("keterangan", "").apply(
-        lambda x: (
-            str(x).split("Satuan Kerja:")[1].split("|")[0].strip()
-            if "Satuan Kerja:" in str(x)
-            else "-"
-        )
+        lambda x: extract_ket(x, "Satuan Kerja:")
     )
     df_tampil["Tahapan Pengadaan"] = df_nontender.get("keterangan", "").apply(
-        lambda x: (
-            str(x).split("Tahapan:")[1].split("|")[0].strip()
-            if "Tahapan:" in str(x)
-            else "-"
-        )
+        lambda x: extract_ket(x, "Tahapan:")
     )
+
     df_tampil["Nama Pemenang"] = df_nontender.get("pemenang", "")
     df_tampil["Tanggal Selesai Pemilihan / Kontrak"] = df_nontender.get(
         "tanggal_tarik", ""
     )
     df_tampil["Nilai Kontrak"] = df_nontender.get("pagu", 0.0)
+
     df_tampil["Alamat"] = df_nontender.get("keterangan", "").apply(
-        lambda x: (
-            str(x).split("Alamat:")[1].strip()
-            if "Alamat:" in str(x)
-            else "-"
-        )
+        lambda x: extract_ket(x, "Alamat:")
     )
     df_tampil["Email"] = df_nontender.get("email_pemenang", "")
     df_tampil["Telepon"] = df_nontender.get("telp_pemenang", "")
@@ -306,9 +305,7 @@ with tab3:
         evaluasi_berdasarkan_tanggal, axis=1
     )
 
-    # --- PENGURUTAN (SORTING) SESUAI PERMINTAAN ---
-    # 1. Tahapan Pengadaan: "Pemilihan Berlangsung" di posisi atas
-    # 2. Status Kepatuhan BPJS: "Belum" di posisi atas
+    # Pengurutan: Pemilihan Berlangsung di atas, Status Belum di atas
     df_tampil["_sort_tahapan"] = df_tampil["Tahapan Pengadaan"].apply(
         lambda x: 0 if "Pemilihan Berlangsung" in str(x) else 1
     )
@@ -450,7 +447,6 @@ with tab3:
               f" `{telp_tujuan if telp_tujuan else 'Belum ada nomor WA terdaftar'}`"
           )
 
-          # Pesan untuk Pemenang
           body_email_nt = f"""Kepada Yth. Pimpinan {pemenang},
 
 Sehubungan dengan selesainya proses pemilihan paket Non-Tender {row_n.get('nama_paket', '')} (Kode Paket: {kode_pilih_nt}) pada tanggal {tgl_selesai_val}, sesuai dengan Peraturan Walikota Kendari dan MoU antara Pemerintah Kota Kendari, Kejaksaan Negeri Kendari dan BPJS, diharapkan agar Saudara segera menunaikan kewajiban kepatuhan BPJS Ketenagakerjaan mulai hari ini (sehari setelah tanggal selesai pemilihan).
@@ -460,7 +456,6 @@ Dinas Tenaga Kerja dan Perindustrian Kota Kendari"""
 
           wa_text_nt = f"Halo {pemenang},\n\nSehubungan dengan selesainya proses pemilihan paket Non-Tender {row_n.get('nama_paket', '')} (Kode Paket: {kode_pilih_nt}) pada tanggal {tgl_selesai_val}, sesuai dengan Peraturan Walikota Kendari dan MoU antara Pemerintah Kota Kendari, Kejaksaan Negeri Kendari dan BPJS, diharapkan agar Saudara segera menunaikan kewajiban kepatuhan BPJS Ketenagakerjaan mulai hari ini.\n\nHormat kami,\nDinas Tenaga Kerja dan Perindustrian Kota Kendari"
 
-          # Pesan untuk PIC BPJS
           body_email_pic = f"""Kepada Yth. Tim PIC BPJS,
 
 Berikut disampaikan monitoring kepatuhan BPJS paket Non-Tender (aktif mulai H+1 tanggal selesai pemilihan):
