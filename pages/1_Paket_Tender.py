@@ -40,8 +40,8 @@ tahapan_opsi = ["Pemilihan Berlangsung", "Pemilihan Selesai"]
 with tab_import:
   st.subheader("📤 Unggah File Excel Rujukan Tender")
   st.info(
-      "Unggah file Excel Anda di sini. Sistem akan menyinkronkan seluruh kolom"
-      " dan nilai kontrak ke database."
+      "Unggah file Excel Anda di sini. Sistem mendeteksi otomatis berbagai"
+      " variasi nama kolom dari file Anda."
   )
 
   uploaded_excel = st.file_uploader(
@@ -51,9 +51,10 @@ with tab_import:
     try:
       df_import = pd.read_excel(uploaded_excel)
       st.write(
-          f"Berhasil membaca file dengan {len(df_import)} baris data. Contoh"
-          " data teratas:"
+          f"Berhasil membaca file dengan {len(df_import)} baris data. Kolom"
+          " yang ditemukan di Excel Anda:"
       )
+      st.write(list(df_import.columns))
       st.dataframe(df_import.head(3), use_container_width=True)
 
       if st.button(
@@ -64,12 +65,21 @@ with tab_import:
         success_count = 0
         with st.spinner("Sedang menyinkronkan data Tender ke Supabase..."):
           for _, row in df_import.iterrows():
-            kode = str(
-                row.get("kode_tender", "")
-                or row.get("kode_nontender", "")
-                or row.get("id_paket", "")
-            )
-            if not kode or kode.lower() == "nan":
+            # 1. Cari kode paket dari berbagai kemungkinan nama kolom
+            kode = ""
+            for k_col in [
+                "kode_tender",
+                "kode_nontender",
+                "id_paket",
+                "kode",
+                "id",
+            ]:
+              if k_col in row and pd.notna(row[k_col]):
+                val_k = str(row[k_col]).strip()
+                if val_k and val_k.lower() != "nan":
+                  kode = val_k
+                  break
+            if not kode:
               continue
 
             satuan_kerja = str(row.get("satuan_kerja", "") or "")
@@ -83,40 +93,91 @@ with tab_import:
                 f"[SK]:{satuan_kerja}|[JP]:{jenis_pengadaan}|[TP]:{tahapan_pengadaan}|[AL]:{alamat}"
             )
 
-            # AMBIL NILAI KONTRAK DARI EXCEL DAN SIMPAN KE KOLOM 'pagu' DI DATABASE
-            val_nilai_kontrak = float(
-                row.get("nilai_kontrak", 0.0)
-                or row.get("pagu", 0.0)
-                or row.get("nilai_pagu", 0.0)
-                or 0.0
-            )
+            # 2. Cari Nama Paket
+            nama_pkt = ""
+            for n_col in [
+                "nama_tender",
+                "nama_nontender",
+                "nama_paket",
+                "uraian_pekerjaan",
+                "pekerjaan",
+            ]:
+              if n_col in row and pd.notna(row[n_col]):
+                val_n = str(row[n_col]).strip()
+                if val_n and val_n.lower() != "nan":
+                  nama_pkt = val_n
+                  break
 
-            val_pemenang = str(
-                row.get("nama_pemenang", "")
-                or row.get("pemenang", "")
-                or "-"
-            )
+            # 3. Cari Nilai Kontrak / Pagu secara fleksibel
+            val_nilai = 0.0
+            for v_col in [
+                "nilai_kontrak",
+                "pagu",
+                "nilai_pagu",
+                "hps",
+                "nilai_hps",
+                "pagu_anggaran",
+            ]:
+              if v_col in row and pd.notna(row[v_col]):
+                raw_v = row[v_col]
+                try:
+                  if isinstance(raw_v, (int, float)):
+                    val_nilai = float(raw_v)
+                  else:
+                    clean_s = (
+                        str(raw_v)
+                        .replace("Rp", "")
+                        .replace(".", "")
+                        .replace(",", ".")
+                        .strip()
+                    )
+                    val_nilai = float(clean_s)
+                  if val_nilai > 0:
+                    break
+                except Exception:
+                  pass
 
+            # 4. Cari Nama Pemenang / Penyedia secara fleksibel
+            val_pemenang = "-"
+            for p_col in [
+                "nama_pemenang",
+                "pemenang",
+                "penyedia",
+                "nama_penyedia",
+                "perusahaan",
+            ]:
+              if p_col in row and pd.notna(row[p_col]):
+                val_p = str(row[p_col]).strip()
+                if val_p and val_p.lower() != "nan" and val_p != "-":
+                  val_pemenang = val_p
+                  break
+
+            # 5. Cari Tanggal
+            tgl_val = ""
+            for t_col in [
+                "tanggal selesai pemilihan",
+                "tanggal_tarik",
+                "tgl_selesai",
+                "tanggal",
+            ]:
+              if t_col in row and pd.notna(row[t_col]):
+                t_str = str(row[t_col]).strip()
+                if t_str and t_str.lower() != "nan":
+                  tgl_val = t_str
+                  break
+
+            # Catatan: Kolom database menggunakan 'pagu' (sesuai struktur tabel cloud Anda)
             data_row = {
-                "id_paket": kode.strip(),
-                "nama_paket": str(
-                    row.get("nama_tender", "")
-                    or row.get("nama_nontender", "")
-                    or row.get("nama_paket", "")
-                    or ""
-                ),
+                "id_paket": kode,
+                "nama_paket": nama_pkt if nama_pkt else "-",
                 "kategori": "Tender",
-                "pagu": val_nilai_kontrak,  # Disimpan ke kolom 'pagu' di database Supabase
+                "pagu": val_nilai,
                 "hps": 0.0,
                 "pemenang": val_pemenang,
                 "status_kepatuhan": str(
                     row.get("status_kepatuhan", "Belum") or "Belum"
                 ),
-                "tanggal_tarik": str(
-                    row.get("tanggal selesai pemilihan", "")
-                    or row.get("tanggal_tarik", "")
-                    or ""
-                ),
+                "tanggal_tarik": tgl_val,
                 "email_pemenang": str(
                     row.get("email", "")
                     or row.get("email_pemenang", "")
