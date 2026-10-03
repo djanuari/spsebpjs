@@ -1,10 +1,9 @@
 from datetime import datetime
-import email
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import smtplib
 import urllib.parse
-from api_connector import get_all_spse_data, upsert_spse_data
+from api_connector import get_all_spse_data, upsert_spse_data, supabase
 import pandas as pd
 import streamlit as st
 
@@ -95,9 +94,9 @@ with tab1:
           )
           st.rerun()
 
-# TAB 2: EDIT DATA
+# TAB 2: EDIT & HAPUS DATA
 with tab2:
-  st.subheader("Edit Data Berdasarkan Kode Tender")
+  st.subheader("Edit atau Hapus Data Berdasarkan Kode Tender")
   if not df_tender.empty and "id_paket" in df_tender.columns:
     df_tender["label_edit"] = (
         df_tender["id_paket"].astype(str)
@@ -105,7 +104,8 @@ with tab2:
         + df_tender["nama_paket"].fillna("")
     )
     pilihan_edit = st.selectbox(
-        "Pilih Kode Tender yang ingin diedit:", df_tender["label_edit"].tolist()
+        "Pilih Kode Tender yang ingin dikelola:",
+        df_tender["label_edit"].tolist(),
     )
 
     if pilihan_edit:
@@ -114,7 +114,7 @@ with tab2:
 
       if not matched_row.empty:
         r = matched_row.iloc[0]
-        st.info(f"Sedang mengedit Kode Tender: **{kode_pilih}**")
+        st.info(f"Sedang mengelola Kode Tender: **{kode_pilih}**")
 
         with st.form(f"form_edit_tender_{kode_pilih}"):
           u_nama = st.text_input(
@@ -170,6 +170,29 @@ with tab2:
                   " cloud!"
               )
               st.rerun()
+
+        # Tombol Hapus Data (Diletakkan di luar form agar aman)
+        st.markdown("---")
+        st.warning(
+            "⚠️ Ingin menghapus data paket ini dari database cloud secara"
+            " permanen?"
+        )
+        if st.button(
+            f"🗑️ Hapus Paket Tender ({kode_pilih})",
+            type="secondary",
+            key=f"del_t_{kode_pilih}",
+        ):
+          try:
+            supabase.table("tabel_spse_bpjs").delete().eq(
+                "id_paket", kode_pilih
+            ).execute()
+            st.success(
+                f"Data Tender dengan kode {kode_pilih} berhasil dihapus dari"
+                " cloud!"
+            )
+            st.rerun()
+          except Exception as e:
+            st.error(f"Gagal menghapus data: {e}")
   else:
     st.info("Belum ada data Tender tersimpan di cloud untuk diedit.")
 
@@ -263,7 +286,6 @@ with tab3:
           row_n = matched_rows_t.iloc[0]
           pemenang = row_n.get("pemenang", "Pemenang") or "Pemenang"
           status = row_n.get("status_kepatuhan", "Belum")
-          nilai_kontrak_t = row_n.get("pagu", 0.0) or 0.0
 
           if "Wajib Kirim" in str(row_n.get("status_peringatan", "")):
             st.error(
