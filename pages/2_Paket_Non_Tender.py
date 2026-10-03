@@ -31,6 +31,39 @@ jenis_pengadaan_opsi = [
 
 tahapan_opsi = ["Pemilihan Berlangsung", "Pemilihan Selesai"]
 
+
+# Fungsi bantu untuk memastikan kolom fisik tersedia atau fallback ke keterangan terstruktur
+def simpan_data_nontender_aman(data_dict):
+  try:
+    # Coba lakukan upsert langsung dengan kolom spesifik
+    res = supabase.table("tabel_spse_bpjs").upsert(data_dict).execute()
+    return True
+  except Exception as e:
+    # Jika tabel di Supabase belum memiliki kolom fisik tersebut,
+    # kita simpan ke kolom 'keterangan' sebagai cadangan otomatis agar data tidak hilang
+    try:
+      fallback_dict = {
+          "id_paket": data_dict.get("id_paket"),
+          "nama_paket": data_dict.get("nama_paket"),
+          "kategori": data_dict.get("kategori", "Non-Tender"),
+          "pagu": data_dict.get("pagu", 0.0),
+          "hps": data_dict.get("hps", 0.0),
+          "pemenang": data_dict.get("pemenang", ""),
+          "status_kepatuhan": data_dict.get("status_kepatuhan", "Belum"),
+          "tanggal_tarik": data_dict.get("tanggal_tarik", ""),
+          "email_pemenang": data_dict.get("email_pemenang", ""),
+          "telp_pemenang": data_dict.get("telp_pemenang", ""),
+          "keterangan": (
+              f"[SK]:{data_dict.get('satuan_kerja', '-')}|[JP]:{data_dict.get('jenis_pengadaan', '-')}|[TP]:{data_dict.get('tahapan_pengadaan', '-')}|[AL]:{data_dict.get('alamat', '-')}"
+          ),
+      }
+      supabase.table("tabel_spse_bpjs").upsert(fallback_dict).execute()
+      return True
+    except Exception as err:
+      st.error(f"Gagal menyimpan ke database: {err}")
+      return False
+
+
 # Ambil data dari Supabase Cloud dan filter kategori Non-Tender
 df_all = get_all_spse_data()
 if not df_all.empty and "kategori" in df_all.columns:
@@ -88,7 +121,7 @@ with tab1:
             "tahapan_pengadaan": tahapan_pengadaan,
             "alamat": alamat,
         }
-        if upsert_spse_data(data_baru):
+        if simpan_data_nontender_aman(data_baru):
           st.success(
               f"Data Non-Tender dengan kode {kode_nontender} berhasil disimpan"
               " ke cloud Supabase!"
@@ -149,12 +182,7 @@ with tab2:
           )
 
           u_satker = st.text_input(
-              "satuan_kerja",
-              value=str(
-                  r.get("satuan_kerja", "")
-                  or r.get("keterangan", "")
-                  or ""
-              ),
+              "satuan_kerja", value=str(r.get("satuan_kerja", "") or "")
           )
           u_jenis = st.text_input(
               "jenis_pengadaan",
@@ -189,7 +217,7 @@ with tab2:
                 "tahapan_pengadaan": u_tahap,
                 "alamat": u_alamat,
             }
-            if upsert_spse_data(data_update):
+            if simpan_data_nontender_aman(data_update):
               st.success(
                   f"Data Non-Tender dengan kode {kode_pilih} berhasil"
                   " diperbarui di cloud!"
@@ -281,24 +309,48 @@ with tab3:
       except Exception:
         return "🚨 Wajib Kirim Notifikasi (Belum Patuh)"
 
+    # Helper untuk mengambil data langsung dari kolom fisik atau ekstrak dari keterangan jika tersimpan sebagai cadangan
+    def get_val_robust(row, col_name, tag):
+      val = row.get(col_name)
+      if pd.notna(val) and str(val).strip() != "" and str(val).lower() != "nan":
+        return str(val)
+
+      # Cek dari kolom keterangan jika ada cadangan tag
+      ket = str(row.get("keterangan", ""))
+      if f"[{tag}]:" in ket:
+        try:
+          parts = ket.split("|")
+          for p in parts:
+            if f"[{tag}]:" in p:
+              v = p.split(f"[{tag}]:")[1].strip()
+              if v and v != "None":
+                return v
+        except Exception:
+          pass
+      return "-"
+
     df_tampil = pd.DataFrame()
 
-    # Memetakan data dan membersihkan nilai kosong menggunakan fillna pada level Series Pandas
     df_tampil["kode_nontender"] = df_nontender.get("id_paket", pd.Series()).fillna(
         "-"
     )
     df_tampil["nama_nontender"] = df_nontender.get(
         "nama_paket", pd.Series()
     ).fillna("-")
-    df_tampil["jenis_pengadaan"] = df_nontender.get(
-        "jenis_pengadaan", pd.Series()
-    ).fillna("-")
-    df_tampil["satuan_kerja"] = df_nontender.get(
-        "satuan_kerja", pd.Series()
-    ).fillna("-")
-    df_tampil["tahapan_pengadaan"] = df_nontender.get(
-        "tahapan_pengadaan", pd.Series()
-    ).fillna("-")
+
+    df_tampil["jenis_pengadaan"] = df_nontender.apply(
+        lambda r: get_val_robust(r, "jenis_pengadaan", "JP"), axis=1
+    )
+    df_tampil["satuan_kerja"] = df_nontender.apply(
+        lambda r: get_val_robust(r, "satuan_kerja", "SK"), axis=1
+    )
+    df_tampil["tahapan_pengadaan"] = df_nontender.apply(
+        lambda r: get_val_robust(r, "tahapan_pengadaan", "TP"), axis=1
+    )
+    df_tampil["Alamat"] = df_nontender.apply(
+        lambda r: get_val_robust(r, "alamat", "AL"), axis=1
+    )
+
     df_tampil["nama_pemenang"] = df_nontender.get(
         "pemenang", pd.Series()
     ).fillna("-")
@@ -308,7 +360,6 @@ with tab3:
     df_tampil["nilai_kontrak"] = df_nontender.get("pagu", pd.Series()).fillna(
         0.0
     )
-    df_tampil["Alamat"] = df_nontender.get("alamat", pd.Series()).fillna("-")
     df_tampil["email"] = df_nontender.get(
         "email_pemenang", pd.Series()
     ).fillna("-")
