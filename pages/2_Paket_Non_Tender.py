@@ -210,13 +210,31 @@ with tab2:
 with tab3:
   st.subheader("Rekapitulasi Paket Non-Tender & Peringatan Otomatis")
   if not df_nontender.empty:
-    # --- LOGIKA NOTIFIKASI PERINGATAN OTOMATIS ---
-    def cek_notifikasi_status(row):
+    # --- LOGIKA PENILAIAN OTOMATIS: SEHARI SETELAH TANGGAL KONTRAK ---
+    def evaluasi_berdasarkan_tanggal(row):
       status = str(row.get("status_kepatuhan", "Belum")).capitalize()
-      if status == "Belum":
-        return "🚨 Wajib Kirim Notifikasi (Belum Patuh)"
-      else:
+      tgl_str = str(row.get("tanggal_tarik", "")).split(" ")[
+          0
+      ]  # Format YYYY-MM-DD
+
+      if status == "Sudah":
         return "✅ Selesai / Patuh"
+
+      try:
+        tgl_kontrak = datetime.strptime(tgl_str, "%Y-%m-%d")
+        selisih_hari = (datetime.now() - tgl_kontrak).days
+
+        # Jika sudah >= 1 hari setelah tanggal kontrak dan status belum patuh
+        if selisih_hari >= 1:
+          return (
+              f"🚨 URGENT: H+{selisih_hari} Kontrak (Wajib Kirim Notifikasi)"
+          )
+        elif selisih_hari == 0:
+          return "⚠️ Hari H Kontrak"
+        else:
+          return "📅 Tanggal Kontrak Mendatang"
+      except Exception:
+        return "🚨 Wajib Kirim Notifikasi (Belum Patuh)"
 
     df_tampil = pd.DataFrame()
     df_tampil["kode_nontender"] = df_nontender.get("id_paket", "")
@@ -252,22 +270,25 @@ with tab3:
     df_tampil["email_pemenang"] = df_nontender.get("email_pemenang", "")
     df_tampil["telp_pemenang"] = df_nontender.get("telp_pemenang", "")
     df_tampil["Status"] = df_nontender.get("status_kepatuhan", "Belum")
-    df_tampil["Peringatan_Notif"] = df_nontender.apply(
-        cek_notifikasi_status, axis=1
+    df_tampil["Evaluasi_Otomatis"] = df_nontender.apply(
+        evaluasi_berdasarkan_tanggal, axis=1
     )
 
-    # Tampilkan ringkasan jumlah paket yang wajib dikirim pesan
+    # Hitung jumlah paket yang memerlukan tindakan mendesak (mulai H+1 kontrak)
+    total_urgent = df_tampil["Evaluasi_Otomatis"].str.contains("URGENT").sum()
     total_belum = (df_tampil["Status"].str.capitalize() == "Belum").sum()
-    if total_belum > 0:
+
+    if total_urgent > 0:
       st.error(
-          f"🚨 Perhatian: Ada **{total_belum} paket Non-Tender** yang status"
-          " kepatuhan BPJS-nya masih **Belum** dan memerlukan pengiriman"
-          " pesan/notifikasi segera!"
+          f"🚨 **Peringatan Sistem:** Ditemukan **{total_urgent} paket** dari"
+          f" total **{total_belum} paket** belum patuh yang sudah melewati"
+          " tanggal penandatanganan kontrak (>= H+1). **Wajib segera dikirimi"
+          " pesan notifikasi!**"
       )
     else:
-      st.success(
-          "✅ Seluruh paket Non-Tender telah memenuhi ketentuan kepatuhan"
-          " BPJS."
+      st.warning(
+          f"⚠️ Ada **{total_belum} paket** yang status kepatuhannya masih"
+          " 'Belum'."
       )
 
     st.dataframe(
@@ -289,7 +310,9 @@ with tab3:
             "email_pemenang": "email_pemenang",
             "telp_pemenang": "telp_pemenang",
             "Status": "Status",
-            "Peringatan_Notif": "Peringatan Notifikasi",
+            "Evaluasi_Otomatis": (
+                "Status Peringatan (Mulai Sehari Setelah Kontrak)"
+            ),
         },
         use_container_width=True,
         hide_index=True,
@@ -363,49 +386,42 @@ with tab3:
           telp_tujuan = (
               row_n.get("telp_pemenang", "") or "Belum ada nomor WA terdaftar"
           )
+          tgl_kontrak_val = str(row_n.get("tanggal_tarik", "-"))
           status_pilih = row_n.get("status_kepatuhan", "Belum")
 
-          if status_pilih.capitalize() == "Belum":
-            st.warning(
-                "🚨 **Status Paket Ini Masih Belum Patuh:** Paket ini wajib"
-                " segera dikirimi pesan peringatan BPJS!"
-            )
-          else:
-            st.info(
-                "✅ **Status Paket Ini Sudah Selesai/Patuh:** Pengiriman pesan"
-                " bersifat konfirmasi ulang."
-            )
-
           st.info(
-              f"📌 **Kontak Pemenang Terdeteksi dari Database:**\n- Email:"
-              f" `{email_tujuan}`\n- No. WhatsApp: `{telp_tujuan}`"
+              f"📌 **Detail Paket Terpilih:**\n- Tanggal Kontrak:"
+              f" `{tgl_kontrak_val}`\n- Status Kepatuhan: `{status_pilih}`\n- Email"
+              f" Pemenang: `{email_tujuan}`\n- No. WhatsApp Pemenang:"
+              f" `{telp_tujuan}`"
           )
 
           # Pesan untuk Pemenang
           body_email_nt = f"""Kepada Yth. Pimpinan {pemenang},
 
-Sehubungan dengan penetapan pemenang untuk paket Non-Tender {row_n.get('nama_paket', '')} (Kode: {kode_pilih_nt}), sesuai dengan Peraturan Walikota Kendari dan MoU antara Pemerintah Kota Kendari, Kejaksaan Negeri Kendari dan BPJS, diharapkan agar Saudara segera menunaikan kewajiban Saudara terkait BPJS Ketenagakerjaan.
+Sehubungan dengan penandatanganan kontrak paket Non-Tender {row_n.get('nama_paket', '')} (Kode: {kode_pilih_nt}) pada tanggal {tgl_kontrak_val}, sesuai dengan Peraturan Walikota Kendari dan MoU antara Pemerintah Kota Kendari, Kejaksaan Negeri Kendari dan BPJS, diharapkan agar Saudara segera menunaikan kewajiban kepatuhan BPJS Ketenagakerjaan mulai hari ini (sehari setelah tanggal kontrak).
 
 Hormat kami,
 Dinas Tenaga Kerja dan Perindustrian Kota Kendari"""
 
-          wa_text_nt = f"Halo {pemenang},\n\nSehubungan dengan penetapan pemenang untuk paket Non-Tender {row_n.get('nama_paket', '')} (Kode: {kode_pilih_nt}), sesuai dengan Peraturan Walikota Kendari dan MoU antara Pemerintah Kota Kendari, Kejaksaan Negeri Kendari dan BPJS, diharapkan agar Saudara segera menunaikan kewajiban Saudara terkait BPJS Ketenagakerjaan.\n\nHormat kami,\nDinas Tenaga Kerja dan Perindustrian Kota Kendari"
+          wa_text_nt = f"Halo {pemenang},\n\nSehubungan dengan penandatanganan kontrak paket Non-Tender {row_n.get('nama_paket', '')} (Kode: {kode_pilih_nt}) pada tanggal {tgl_kontrak_val}, sesuai dengan Peraturan Walikota Kendari dan MoU antara Pemerintah Kota Kendari, Kejaksaan Negeri Kendari dan BPJS, diharapkan agar Saudara segera menunaikan kewajiban kepatuhan BPJS Ketenagakerjaan mulai hari ini.\n\nHormat kami,\nDinas Tenaga Kerja dan Perindustrian Kota Kendari"
 
           # Pesan untuk PIC BPJS
           body_email_pic = f"""Kepada Yth. Tim PIC BPJS,
 
-Berikut disampaikan laporan pemenang paket Non-Tender yang memerlukan verifikasi kepatuhan BPJS:
+Berikut disampaikan monitoring kepatuhan BPJS paket Non-Tender (aktif mulai H+1 tanggal kontrak):
 - Kode Paket: {kode_pilih_nt}
 - Nama Paket: {row_n.get('nama_paket', '')}
+- Tanggal Kontrak: {tgl_kontrak_val}
 - Nama Pemenang: {pemenang}
 - Status BPJS: {status_pilih}
 
-Mohon kiranya dapat ditindaklanjuti sesuai ketentuan yang berlaku.
+Mohon kiranya dapat diverifikasi dan ditindaklanjuti sesuai ketentuan yang berlaku.
 
 Hormat kami,
 Admin SPSE Pemerintah Kota Kendari"""
 
-          wa_text_pic = f"Halo Tim PIC BPJS,\n\nBerikut disampaikan laporan pemenang paket Non-Tender untuk ditindaklanjuti:\n- Kode: {kode_pilih_nt}\n- Paket: {row_n.get('nama_paket', '')}\n- Pemenang: {pemenang}\n- Status BPJS: {status_pilih}\n\nTerima kasih."
+          wa_text_pic = f"Halo Tim PIC BPJS,\n\nBerikut monitoring kepatuhan paket Non-Tender (aktif mulai H+1 tanggal kontrak):\n- Kode: {kode_pilih_nt}\n- Paket: {row_n.get('nama_paket', '')}\n- Tgl Kontrak: {tgl_kontrak_val}\n- Pemenang: {pemenang}\n- Status BPJS: {status_pilih}\n\nTerima kasih."
 
           with st.expander("📄 Pratinjau Pesan (Pemenang & PIC BPJS)"):
             st.markdown("**1. Pesan untuk Pemenang:**")
