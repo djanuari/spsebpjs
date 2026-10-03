@@ -1,260 +1,165 @@
-import sqlite3
-
-DB_PATH = "database_spse.db"
+import streamlit as st
+from api_connector import upsert_spse_data
 
 
 def inisialisasi_dan_isi_dummy():
-  print("⏳ Menghubungkan ke database lokal:", DB_PATH)
-  conn = sqlite3.connect(DB_PATH)
-  cursor = conn.cursor()
+  print("⏳ Memulai pengisian data dummy ke Supabase Cloud...")
 
-  # 1. Pastikan tabel-tabel utama sudah ada (jaga-jaga jika belum dibuat)
-  cursor.execute("""
-        CREATE TABLE IF NOT EXISTS tabel_tender (
-            kode_tender TEXT PRIMARY KEY,
-            nama_paket TEXT,
-            jenis_pengadaan TEXT,
-            satuan_kerja TEXT,
-            nilai_pagu REAL,
-            nilai_negosiasi REAL,
-            tanggal_penetapan TEXT,
-            nama_pemenang TEXT,
-            alamat_pemenang TEXT,
-            email_pemenang TEXT,
-            telp_pemenang TEXT,
-            status_bpjs TEXT
-        )
-    """)
-
-  cursor.execute("""
-        CREATE TABLE IF NOT EXISTS tabel_nontender (
-            kode_nontender TEXT PRIMARY KEY,
-            nama_nontender TEXT,
-            jenis_pengadaan TEXT,
-            satuan_kerja TEXT,
-            nilai_hps REAL,
-            nilai_negosiasi REAL,
-            tanggal_kontrak TEXT,
-            nama_pemenang TEXT,
-            alamat_pemenang TEXT,
-            email_pemenang TEXT,
-            telp_pemenang TEXT,
-            status_bpjs TEXT
-        )
-    """)
-
-  cursor.execute("""
-        CREATE TABLE IF NOT EXISTS tabel_epurchasing (
-            kode_paket TEXT PRIMARY KEY,
-            nama_paket TEXT,
-            penyedia TEXT,
-            satuan_kerja TEXT,
-            pagu REAL,
-            nilai_transaksi REAL,
-            tanggal_transaksi TEXT,
-            status_bpjs TEXT
-        )
-    """)
-
-  # 2. Data Dummy Tender (5 Paket)
+  # 1. Data Dummy Tender (5 Paket)
   data_tender = [
-      (
-          "TND-2026-001",
-          "Pembangunan Gedung Kantor Walikota Tahap II",
-          "Pekerjaan Konstruksi",
-          "Setda Kota Kendari",
-          2500000000,
-          2400000000,
-          "2026-06-01",
-          "PT Sultra Konstruksi Utama",
-          "Jalan Malik Raya No. 10, Kendari",
-          "sultra.konstruksi@gmail.com",
-          "0401-3123456",
-          "Sudah",
-      ),
-      (
-          "TND-2026-002",
-          "Pengadaan Alat Kesehatan RSUD Kota Kendari",
-          "Pengadaan Barang",
-          "RSUD Kota Kendari",
-          1200000000,
-          1150000000,
-          "2026-06-05",
-          "PT Medika Sejahtera Mandiri",
-          "Jl. Brigjen M. Yoenoes, Kendari",
-          "medika.sejahtera@yahoo.com",
-          "0401-3198765",
-          "Sudah",
-      ),
-      (
-          "TND-2026-003",
-          "Belanja Jasa Konsultansi Perencanaan Jalan",
-          "Jasa Konsultansi",
-          "Dinas Pekerjaan Umum",
-          350000000,
-          340000000,
-          "2026-06-10",
-          "CV Konsultan Madani",
-          "Kadia, Kendari",
-          "konsultan.madani@gmail.com",
-          "08114112233",
-          "Belum",
-      ),
-      (
-          "TND-2026-004",
-          "Peningkatan Jalan Poros Nanga-Nanga",
-          "Pekerjaan Konstruksi",
-          "Dinas Pekerjaan Umum dan Penataan Ruang",
-          4500000000,
-          4400000000,
-          "2026-06-12",
-          "PT Bumi Kendari Perkasa",
-          "Jl. HEA Mokodompit, Kendari",
-          "bumi.perkasa@gmail.com",
-          "0401-3155678",
-          "Sudah",
-      ),
-      (
-          "TND-2026-005",
-          "Pengadaan Meubelair Sekolah Dasar Negeri Se-Kota Kendari",
-          "Pengadaan Barang",
-          "Dinas Pendidikan dan Kebudayaan",
-          850000000,
-          820000000,
-          "2026-06-15",
-          "CV Sultra Sejahtera Furnitur",
-          "Mandonga, Kendari",
-          "sultra.furnitur@yahoo.com",
-          "0401-3224455",
-          "Belum",
-      ),
+      {
+          "id_paket": "TND-2026-001",
+          "nama_paket": "Pembangunan Gedung Kantor Walikota Tahap II",
+          "kategori": "Tender",
+          "pagu": 2500000000,
+          "hps": 2400000000,
+          "pemenang": "PT Sultra Konstruksi Utama",
+          "status_kepatuhan": "Sudah",
+          "tanggal_tarik": "2026-06-01",
+          "keterangan": "Setda Kota Kendari | Konstruksi",
+      },
+      {
+          "id_paket": "TND-2026-002",
+          "nama_paket": "Pengadaan Alat Kesehatan RSUD Kota Kendari",
+          "kategori": "Tender",
+          "pagu": 1200000000,
+          "hps": 1150000000,
+          "pemenang": "PT Medika Sejahtera Mandiri",
+          "status_kepatuhan": "Sudah",
+          "tanggal_tarik": "2026-06-05",
+          "keterangan": "RSUD Kota Kendari | Barang",
+      },
+      {
+          "id_paket": "TND-2026-003",
+          "nama_paket": "Belanja Jasa Konsultansi Perencanaan Jalan",
+          "kategori": "Tender",
+          "pagu": 350000000,
+          "hps": 340000000,
+          "pemenang": "CV Konsultan Madani",
+          "status_kepatuhan": "Belum",
+          "tanggal_tarik": "2026-06-10",
+          "keterangan": "Dinas Pekerjaan Umum | Konsultansi",
+      },
+      {
+          "id_paket": "TND-2026-004",
+          "nama_paket": "Peningkatan Jalan Poros Nanga-Nanga",
+          "kategori": "Tender",
+          "pagu": 4500000000,
+          "hps": 4400000000,
+          "pemenang": "PT Bumi Kendari Perkasa",
+          "status_kepatuhan": "Sudah",
+          "tanggal_tarik": "2026-06-12",
+          "keterangan": "DPUPR | Konstruksi",
+      },
+      {
+          "id_paket": "TND-2026-005",
+          "nama_paket": "Pengadaan Meubelair Sekolah Dasar Negeri Se-Kota Kendari",
+          "kategori": "Tender",
+          "pagu": 850000000,
+          "hps": 820000000,
+          "pemenang": "CV Sultra Sejahtera Furnitur",
+          "status_kepatuhan": "Belum",
+          "tanggal_tarik": "2026-06-15",
+          "keterangan": "Dinas Pendidikan dan Kebudayaan | Barang",
+      },
   ]
 
-  # 3. Data Dummy Non-Tender (4 Paket)
+  # 2. Data Dummy Non-Tender (4 Paket)
   data_nontender = [
-      (
-          "NTND-2026-001",
-          "Pengadaan ATK Kantor Dinas Kesehatan",
-          "Pengadaan Barang",
-          "Dinas Kesehatan Kota Kendari",
-          75000000,
-          72000000,
-          "2026-06-02",
-          "CV Cahaya Abadi",
-          "Jl. Abunawas, Kendari",
-          "cahaya.abadi@gmail.com",
-          "0401-3221122",
-          "Sudah",
-      ),
-      (
-          "NTND-2026-002",
-          "Pemeliharaan Berkala Kendaraan Dinas Operasional",
-          "Jasa Lainnya",
-          "Bappeda Kota Kendari",
-          100000000,
-          95000000,
-          "2026-06-06",
-          "Bengkel Sejahtera Motor",
-          "Jl. Sao-Sao, Kendari",
-          "sejahtera.motor@yahoo.com",
-          "0401-3255443",
-          "Belum",
-      ),
-      (
-          "NTND-2026-003",
-          "Penyusunan Dokumen Kajian Lingkungan Hidup Strategis (KLHS)",
-          "Jasa Konsultansi",
-          "Dinas Lingkungan Hidup",
-          150000000,
-          145000000,
-          "2026-06-08",
-          "CV Enviro Consult",
-          "Wua-Wua, Kendari",
-          "enviro.consult@gmail.com",
-          "08124567890",
-          "Sudah",
-      ),
-      (
-          "NTND-2026-004",
-          "Belanja Cetak dan Pengadaan Publikasi Kegiatan Pemkot",
-          "Pengadaan Barang",
-          "Diskominfo Kota Kendari",
-          50000000,
-          48000000,
-          "2026-06-11",
-          "CV Media Utama Kendari",
-          "Mandonga, Kendari",
-          "media.utama@gmail.com",
-          "0401-3118899",
-          "Belum",
-      ),
+      {
+          "id_paket": "NTND-2026-001",
+          "nama_paket": "Pengadaan ATK Kantor Dinas Kesehatan",
+          "kategori": "Non-Tender",
+          "pagu": 75000000,
+          "hps": 72000000,
+          "pemenang": "CV Cahaya Abadi",
+          "status_kepatuhan": "Sudah",
+          "tanggal_tarik": "2026-06-02",
+          "keterangan": "Dinas Kesehatan Kota Kendari | Barang",
+      },
+      {
+          "id_paket": "NTND-2026-002",
+          "nama_paket": "Pemeliharaan Berkala Kendaraan Dinas Operasional",
+          "kategori": "Non-Tender",
+          "pagu": 100000000,
+          "hps": 95000000,
+          "pemenang": "Bengkel Sejahtera Motor",
+          "status_kepatuhan": "Belum",
+          "tanggal_tarik": "2026-06-06",
+          "keterangan": "Bappeda Kota Kendari | Jasa Lainnya",
+      },
+      {
+          "id_paket": "NTND-2026-003",
+          "nama_paket": "Penyusunan Dokumen Kajian Lingkungan Hidup Strategis (KLHS)",
+          "kategori": "Non-Tender",
+          "pagu": 150000000,
+          "hps": 145000000,
+          "pemenang": "CV Enviro Consult",
+          "status_kepatuhan": "Sudah",
+          "tanggal_tarik": "2026-06-08",
+          "keterangan": "Dinas Lingkungan Hidup | Jasa Konsultansi",
+      },
+      {
+          "id_paket": "NTND-2026-004",
+          "nama_paket": "Belanja Cetak dan Pengadaan Publikasi Kegiatan Pemkot",
+          "kategori": "Non-Tender",
+          "pagu": 50000000,
+          "hps": 48000000,
+          "pemenang": "CV Media Utama Kendari",
+          "status_kepatuhan": "Belum",
+          "tanggal_tarik": "2026-06-11",
+          "keterangan": "Diskominfo Kota Kendari | Barang",
+      },
   ]
 
-  # 4. Data Dummy E-Purchasing (3 Paket)
+  # 3. Data Dummy E-Purchasing (3 Paket)
   data_epurchasing = [
-      (
-          "EP-2026-001",
-          "Pembelian Laptop Operasional Kantor (Katalog Elektronik)",
-          "PT Elektrindo Jaya",
-          "Badan Kepegawaian dan Pengembangan SDM",
-          150000000,
-          145000000,
-          "2026-06-03",
-          "Sudah",
-      ),
-      (
-          "EP-2026-002",
-          "Pengadaan Seragam Dinas Pegawai (Katalog Lokal)",
-          "CV Konveksi Kendari Mandiri",
-          "Dinas Perhubungan",
-          80000000,
-          78000000,
-          "2026-06-07",
-          "Sudah",
-      ),
-      (
-          "EP-2026-003",
-          "Belanja Langganan Server dan Cloud Hosting Pemkot",
-          "PT Cloud Solusi Indonesia",
-          "Dinas Komunikasi dan Informatika",
-          120000000,
-          120000000,
-          "2026-06-09",
-          "Belum",
-      ),
+      {
+          "id_paket": "EP-2026-001",
+          "nama_paket": "Pembelian Laptop Operasional Kantor (Katalog Elektronik)",
+          "kategori": "E-Purchasing",
+          "pagu": 150000000,
+          "hps": 145000000,
+          "pemenang": "PT Elektrindo Jaya",
+          "status_kepatuhan": "Sudah",
+          "tanggal_tarik": "2026-06-03",
+          "keterangan": "BKPSDM | E-Purchasing",
+      },
+      {
+          "id_paket": "EP-2026-002",
+          "nama_paket": "Pengadaan Seragam Dinas Pegawai (Katalog Lokal)",
+          "kategori": "E-Purchasing",
+          "pagu": 80000000,
+          "hps": 78000000,
+          "pemenang": "CV Konveksi Kendari Mandiri",
+          "status_kepatuhan": "Sudah",
+          "tanggal_tarik": "2026-06-07",
+          "keterangan": "Dinas Perhubungan | E-Purchasing",
+      },
+      {
+          "id_paket": "EP-2026-003",
+          "nama_paket": "Belanja Langganan Server dan Cloud Hosting Pemkot",
+          "kategori": "E-Purchasing",
+          "pagu": 120000000,
+          "hps": 120000000,
+          "pemenang": "PT Cloud Solusi Indonesia",
+          "status_kepatuhan": "Belum",
+          "tanggal_tarik": "2026-06-09",
+          "keterangan": "Diskominfo Kota Kendari | E-Purchasing",
+      },
   ]
 
-  # Eksekusi Memasukkan Data ke Database
-  cursor.executemany(
-      """
-        INSERT OR REPLACE INTO tabel_tender 
-        (kode_tender, nama_paket, jenis_pengadaan, satuan_kerja, nilai_pagu, nilai_negosiasi, tanggal_penetapan, nama_pemenang, alamat_pemenang, email_pemenang, telp_pemenang, status_bpjs)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """,
-      data_tender,
-  )
+  total_sukses = 0
+  semua_data = data_tender + data_nontender + data_epurchasing
 
-  cursor.executemany(
-      """
-        INSERT OR REPLACE INTO tabel_nontender 
-        (kode_nontender, nama_nontender, jenis_pengadaan, satuan_kerja, nilai_hps, nilai_negosiasi, tanggal_kontrak, nama_pemenang, alamat_pemenang, email_pemenang, telp_pemenang, status_bpjs)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """,
-      data_nontender,
-  )
+  for item in semua_data:
+    if upsert_spse_data(item):
+      total_sukses += 1
 
-  cursor.executemany(
-      """
-        INSERT OR REPLACE INTO tabel_epurchasing 
-        (kode_paket, nama_paket, penyedia, satuan_kerja, pagu, nilai_transaksi, tanggal_transaksi, status_bpjs)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """,
-      data_epurchasing,
+  print(
+      f"✅ Sukses! Sebanyak {total_sukses} data dummy berhasil dimasukkan ke"
+      " tabel cloud Supabase."
   )
-
-  conn.commit()
-  conn.close()
-  print("✅ Sukses! Data dummy Tender, Non-Tender, dan E-Purchasing berhasil dimasukkan ke database.")
 
 
 if __name__ == "__main__":
