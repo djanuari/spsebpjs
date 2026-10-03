@@ -41,7 +41,7 @@ with tab_import:
   st.subheader("📤 Unggah File Excel Rujukan Tender")
   st.info(
       "Unggah file Excel Anda di sini. Sistem akan menyinkronkan seluruh kolom"
-      " termasuk nilai_kontrak secara presisi."
+      " ke database."
   )
 
   uploaded_excel = st.file_uploader(
@@ -83,7 +83,7 @@ with tab_import:
                 f"[SK]:{satuan_kerja}|[JP]:{jenis_pengadaan}|[TP]:{tahapan_pengadaan}|[AL]:{alamat}"
             )
 
-            # Mengambil nilai_kontrak langsung dari file Excel secara akurat
+            # Membaca nilai_kontrak langsung dari file Excel
             val_nilai_kontrak = float(row.get("nilai_kontrak", 0.0) or 0.0)
 
             val_pemenang = str(
@@ -101,7 +101,7 @@ with tab_import:
                     or ""
                 ),
                 "kategori": "Tender",
-                "pagu": val_nilai_kontrak,  # Disimpan ke database
+                "nilai_kontrak": val_nilai_kontrak,  # Disimpan langsung ke kolom nilai_kontrak di database
                 "hps": 0.0,
                 "pemenang": val_pemenang,
                 "status_kepatuhan": str(
@@ -183,7 +183,7 @@ with tab1:
             "id_paket": kode_tender.strip(),
             "nama_paket": nama_tender,
             "kategori": "Tender",
-            "pagu": nilai_kontrak,
+            "nilai_kontrak": nilai_kontrak,
             "hps": 0.0,
             "pemenang": nama_pemenang,
             "status_kepatuhan": status_bpjs,
@@ -233,7 +233,9 @@ with tab2:
           uc1, uc2 = st.columns(2)
           u_nilai = uc1.number_input(
               "nilai_kontrak (Rp)",
-              value=float(r.get("pagu", 0.0) or 0.0),
+              value=float(
+                  r.get("nilai_kontrak", r.get("pagu", 0.0)) or 0.0
+              ),
               format="%.2f",
           )
           stat_idx = (
@@ -266,7 +268,7 @@ with tab2:
                 "id_paket": kode_pilih,
                 "nama_paket": u_nama,
                 "kategori": "Tender",
-                "pagu": u_nilai,
+                "nilai_kontrak": u_nilai,
                 "hps": float(r.get("hps", 0.0) or 0.0),
                 "pemenang": u_pemenang,
                 "status_kepatuhan": u_bpjs,
@@ -408,8 +410,11 @@ with tab3:
         "tanggal_tarik", pd.Series()
     ).fillna("-")
 
-    # Mengambil data dari kolom 'pagu' yang berisi nilai kontrak dan memformatnya ke Rupiah
-    raw_pagu = df_tender.get("pagu", pd.Series()).fillna(0.0)
+    # Membaca nilai dari kolom 'nilai_kontrak' (fallback ke 'pagu' jika ada data lama)
+    raw_nilai = df_tender.get(
+        "nilai_kontrak", df_tender.get("pagu", pd.Series())
+    ).fillna(0.0)
+
 
     def format_rupiah(val):
       try:
@@ -424,7 +429,8 @@ with tab3:
       except Exception:
         return "Rp 0,00"
 
-    df_tampil["nilai_kontrak"] = raw_pagu.apply(format_rupiah)
+
+    df_tampil["nilai_kontrak"] = raw_nilai.apply(format_rupiah)
 
     df_tampil["email"] = df_tender.get("email_pemenang", pd.Series()).fillna(
         "-"
