@@ -23,8 +23,8 @@ tab1, tab2, tab3 = st.tabs(
 
 jenis_pengadaan_opsi = [
     "Pekerjaan Konstruksi",
-    "Jasa Konsultansi Konstruksi",
-    "Jasa Konsultansi Non Konstruksi",
+    "Jasa Konsultansi Badan Usaha Konstruksi",
+    "Jasa Konsultansi Non Badan Usaha Konstruksi",
     "Jasa Lainnya",
     "Pengadaan Barang",
 ]
@@ -59,9 +59,9 @@ with tab1:
         "8. Nilai Kontrak (Rp)", min_value=0.0, format="%.2f"
     )
 
-    status_bpjs = st.selectbox(
+    status_bpjs = c4.selectbox(
         "9. Status Kepatuhan BPJS", ["Belum", "Sudah"]
-    )
+    )  # Diperbaiki di kolom c4 atau buat kolom sendiri jika perlu
     alamat = st.text_area("10. Alamat")
 
     c7, c8 = st.columns(2)
@@ -184,7 +184,7 @@ with tab2:
             " permanen?"
         )
         if st.button(
-            f"🗑 Hapus Paket Non-Tender ({kode_pilih})",
+            f"🗑️ Hapus Paket Non-Tender ({kode_pilih})",
             type="secondary",
             key=f"del_nt_{kode_pilih}",
         ):
@@ -273,6 +273,20 @@ with tab3:
         evaluasi_berdasarkan_tanggal, axis=1
     )
 
+    # --- PENGURUTAN (SORTING) SESUAI PERMINTAAN ---
+    # 1. Tahapan Pengadaan: "Paket Sedang Berlangsung" di posisi atas
+    # 2. Status Kepatuhan: "Belum" di posisi atas
+    df_tampil["_sort_tahapan"] = df_tampil["tahapan_pengadaan"].apply(
+        lambda x: 0 if "Sedang Berlangsung" in str(x) else 1
+    )
+    df_tampil["_sort_status"] = df_tampil["status_kepatuhan"].apply(
+        lambda x: 0 if str(x).lower() == "belum" else 1
+    )
+
+    df_tampil = df_tampil.sort_values(
+        by=["_sort_tahapan", "_sort_status"], ascending=[True, True]
+    ).drop(columns=["_sort_tahapan", "_sort_status"])
+
     total_urgent = df_tampil["Evaluasi_Otomatis"].str.contains("URGENT").sum()
     total_belum = (
         df_tampil["status_kepatuhan"].str.capitalize() == "Belum"
@@ -330,7 +344,7 @@ with tab3:
     )
 
     with st.expander(
-        "⚙️ Konfigurasi & Kirim Pesan Otomatis (Pemenang & PIC BPJS)",
+        "⚙️️ Konfigurasi & Kirim Pesan Otomatis (Pemenang & PIC BPJS)",
         expanded=True,
     ):
       col_smtp1, col_smtp2 = st.columns(2)
