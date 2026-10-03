@@ -39,10 +39,7 @@ tahapan_opsi = ["Pemilihan Berlangsung", "Pemilihan Selesai"]
 # TAB IMPORT EXCEL
 with tab_import:
   st.subheader("📤 Unggah File Excel Rujukan Tender")
-  st.info(
-      "Unggah file Excel Anda di sini. Sistem mendeteksi otomatis berbagai"
-      " variasi nama kolom dari file Anda."
-  )
+  st.info("Unggah file Excel SPSE Anda di sini.")
 
   uploaded_excel = st.file_uploader(
       "Pilih file Excel (.xlsx)", type=["xlsx", "xls"], key="tender_excel"
@@ -51,10 +48,9 @@ with tab_import:
     try:
       df_import = pd.read_excel(uploaded_excel)
       st.write(
-          f"Berhasil membaca file dengan {len(df_import)} baris data. Kolom"
-          " yang ditemukan di Excel Anda:"
+          f"Berhasil membaca file dengan {len(df_import)} baris data. Contoh"
+          " data teratas:"
       )
-      st.write(list(df_import.columns))
       st.dataframe(df_import.head(3), use_container_width=True)
 
       if st.button(
@@ -65,21 +61,14 @@ with tab_import:
         success_count = 0
         with st.spinner("Sedang menyinkronkan data Tender ke Supabase..."):
           for _, row in df_import.iterrows():
-            # 1. Cari kode paket dari berbagai kemungkinan nama kolom
-            kode = ""
-            for k_col in [
-                "kode_tender",
-                "kode_nontender",
-                "id_paket",
-                "kode",
-                "id",
-            ]:
-              if k_col in row and pd.notna(row[k_col]):
-                val_k = str(row[k_col]).strip()
-                if val_k and val_k.lower() != "nan":
-                  kode = val_k
-                  break
-            if not kode:
+            # Ambil kode tender secara aman
+            kode = str(
+                row.get("kode_tender", "")
+                or row.get("kode_nontender", "")
+                or row.get("id_paket", "")
+                or ""
+            ).strip()
+            if not kode or kode.lower() == "nan":
               continue
 
             satuan_kerja = str(row.get("satuan_kerja", "") or "")
@@ -93,39 +82,17 @@ with tab_import:
                 f"[SK]:{satuan_kerja}|[JP]:{jenis_pengadaan}|[TP]:{tahapan_pengadaan}|[AL]:{alamat}"
             )
 
-            # 2. Cari Nama Paket
-            nama_pkt = ""
-            for n_col in [
-                "nama_tender",
-                "nama_nontender",
-                "nama_paket",
-                "uraian_pekerjaan",
-                "pekerjaan",
-            ]:
-              if n_col in row and pd.notna(row[n_col]):
-                val_n = str(row[n_col]).strip()
-                if val_n and val_n.lower() != "nan":
-                  nama_pkt = val_n
-                  break
-
-            # 3. Cari Nilai Kontrak / Pagu secara fleksibel
+            # Ambil Nilai Kontrak / Pagu
             val_nilai = 0.0
-            for v_col in [
-                "nilai_kontrak",
-                "pagu",
-                "nilai_pagu",
-                "hps",
-                "nilai_hps",
-                "pagu_anggaran",
-            ]:
-              if v_col in row and pd.notna(row[v_col]):
-                raw_v = row[v_col]
+            for col_n in ["nilai_kontrak", "pagu", "nilai_pagu", "hps"]:
+              if col_n in row and pd.notna(row[col_n]):
                 try:
-                  if isinstance(raw_v, (int, float)):
-                    val_nilai = float(raw_v)
+                  raw_val = row[col_n]
+                  if isinstance(raw_val, (int, float)):
+                    val_nilai = float(raw_val)
                   else:
                     clean_s = (
-                        str(raw_v)
+                        str(raw_val)
                         .replace("Rp", "")
                         .replace(".", "")
                         .replace(",", ".")
@@ -137,39 +104,32 @@ with tab_import:
                 except Exception:
                   pass
 
-            # 4. Cari Nama Pemenang / Penyedia secara fleksibel
+            # Ambil Nama Pemenang
             val_pemenang = "-"
-            for p_col in [
-                "nama_pemenang",
-                "pemenang",
-                "penyedia",
-                "nama_penyedia",
-                "perusahaan",
-            ]:
-              if p_col in row and pd.notna(row[p_col]):
-                val_p = str(row[p_col]).strip()
-                if val_p and val_p.lower() != "nan" and val_p != "-":
-                  val_pemenang = val_p
+            for col_p in ["nama_pemenang", "pemenang", "penyedia"]:
+              if col_p in row and pd.notna(row[col_p]):
+                p_str = str(row[col_p]).strip()
+                if p_str and p_str.lower() != "nan" and p_str != "-":
+                  val_pemenang = p_str
                   break
 
-            # 5. Cari Tanggal
+            # Ambil Tanggal Selesai Pemilihan
             tgl_val = ""
-            for t_col in [
-                "tanggal selesai pemilihan",
-                "tanggal_tarik",
-                "tgl_selesai",
-                "tanggal",
-            ]:
-              if t_col in row and pd.notna(row[t_col]):
-                t_str = str(row[t_col]).strip()
+            for col_t in ["tanggal selesai pemilihan", "tanggal_tarik", "tgl"]:
+              if col_t in row and pd.notna(row[col_t]):
+                t_str = str(row[col_t]).strip()
                 if t_str and t_str.lower() != "nan":
                   tgl_val = t_str
                   break
 
-            # Catatan: Kolom database menggunakan 'pagu' (sesuai struktur tabel cloud Anda)
             data_row = {
                 "id_paket": kode,
-                "nama_paket": nama_pkt if nama_pkt else "-",
+                "nama_paket": str(
+                    row.get("nama_tender", "")
+                    or row.get("nama_nontender", "")
+                    or row.get("nama_paket", "")
+                    or "-"
+                ),
                 "kategori": "Tender",
                 "pagu": val_nilai,
                 "hps": 0.0,
@@ -375,7 +335,7 @@ with tab2:
     with st.expander("⚠ Klik untuk opsi Hapus Semua Data Tender"):
       st.warning(
           "Tindakan ini akan menghapus **seluruh** data Tender dari database"
-          " cloud secara permanen dan tidak dapat dikembalikan."
+          " cloud secara permanen."
       )
       konfirmasi_hapus_semua = st.checkbox(
           "Saya yakin ingin menghapus seluruh data Tender",
