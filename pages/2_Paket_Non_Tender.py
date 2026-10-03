@@ -408,7 +408,7 @@ Sehubungan dengan penetapan pemenang perusahaan saudara pada SPSE Kota Kendari u
 Hormat kami,
 Dinas Tenaga Kerja dan Perindustrian Kota Kendari"""
 
-          wa_text_nt = f"Halo {pemenang},\n\nSehubungan dengan penandatanganan kontrak paket Non-Tender {row_n.get('nama_paket', '')} (Kode: {kode_pilih_nt}) pada tanggal {tgl_kontrak_val}, sesuai dengan Peraturan Walikota Kendari dan MoU antara Pemerintah Kota Kendari, Kejaksaan Negeri Kendari dan BPJS, diharapkan agar Saudara segera menunaikan kewajiban kepatuhan BPJS Ketenagakerjaan mulai hari ini.\n\nHormat kami,\nDinas Tenaga Kerja dan Perindustrian Kota Kendari"
+          wa_text_nt = f"Halo {pemenang},\n\nSehubungan dengan penetapan pemenang perusahaan saudara pada SPSE Kota Kendari untuk paket Non-Tender {row_n.get('nama_paket', '')} (Kode: {kode_pilih_nt}) pada tanggal {tgl_kontrak_val}, maka sesuai dengan Surat Edaran Wali Kota Kendari Nomor 100.3.4.3/3290/Tahun 2025 Tentang Perlindungan Jaminan Sosial Berupa Jaminan Kecelakaan Kerja (JKK) dan Jaminan Kematian (JKM) Bagi Pekerja Sektor Jasa Konstruksi Di Lingkungan Pemerintah Kota Kendari, diharapkan agar Saudara segera menunaikan kewajiban kepatuhan BPJS Ketenagakerjaan sesuai peraturan perundang-undangan yang berlaku. Terima kasih.\n\nHormat kami,\nDinas Tenaga Kerja dan Perindustrian Kota Kendari"
 
           # Pesan untuk PIC BPJS
           body_email_pic = f"""Kepada Yth. Tim PIC BPJS,
