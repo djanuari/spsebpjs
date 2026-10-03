@@ -40,8 +40,8 @@ tahapan_opsi = ["Pemilihan Berlangsung", "Pemilihan Selesai"]
 with tab_import:
   st.subheader("📤 Unggah File Excel Rujukan Tender")
   st.info(
-      "Unggah file Excel Anda di sini. Sistem akan membaca kolom 'total_nilai'"
-      " dan 'nama_penyedia' secara tepat."
+      "Unggah file Excel Anda di sini. Sistem akan mencocokkan kolom"
+      " 'nilai_kontrak' dan 'nama_pemenang' secara akurat."
   )
 
   uploaded_excel = st.file_uploader(
@@ -79,19 +79,42 @@ with tab_import:
                 f"[SK]:{satuan_kerja}|[JP]:{jenis_pengadaan}|[TP]:{tahapan_pengadaan}|[AL]:{alamat}"
             )
 
-            # AMBIL NILAI DARI KOLOM 'total_nilai' DI EXCEL
-            val_nilai = float(row.get("total_nilai", 0.0) or 0.0)
+            # AMBIL NILAI KONTRAK SECARA FLEKSIBEL DARI BERBAGAI NAMA KOLOM
+            val_nilai = 0.0
+            for col_n in ["nilai_kontrak", "total_nilai", "pagu", "nilai_pagu"]:
+              if col_n in row and pd.notna(row[col_n]):
+                try:
+                  raw_v = row[col_n]
+                  if isinstance(raw_v, (int, float)):
+                    val_nilai = float(raw_v)
+                  else:
+                    clean_s = (
+                        str(raw_v)
+                        .replace("Rp", "")
+                        .replace(".", "")
+                        .replace(",", ".")
+                        .strip()
+                    )
+                    val_nilai = float(clean_s)
+                  if val_nilai > 0:
+                    break
+                except Exception:
+                  pass
 
-            # AMBIL NAMA PEMENANG DARI KOLOM 'nama_penyedia' DI EXCEL
-            val_pemenang = str(
-                row.get("nama_penyedia", "")
-                or row.get("nama_pemenang", "")
-                or "-"
-            ).strip()
-            if not val_pemenang or val_pemenang.lower() == "nan":
-              val_pemenang = "-"
+            # AMBIL NAMA PEMENANG SECARA FLEKSIBEL DARI BERBAGAI NAMA KOLOM
+            val_pemenang = "-"
+            for col_p in [
+                "nama_pemenang",
+                "nama_penyedia",
+                "pemenang",
+                "penyedia",
+            ]:
+              if col_p in row and pd.notna(row[col_p]):
+                p_str = str(row[col_p]).strip()
+                if p_str and p_str.lower() != "nan" and p_str != "-":
+                  val_pemenang = p_str
+                  break
 
-            # AMBIL TANGGAL SELESAI PEMILIHAN
             val_tgl = str(row.get("tanggal selesai pemilihan", "") or "").strip()
             if val_tgl.lower() == "nan":
               val_tgl = ""
@@ -275,7 +298,7 @@ with tab2:
             " permanen?"
         )
         if st.button(
-            f"🗑️️ Hapus Paket Tender ({kode_pilih})",
+            f"🗑️ Hapus Paket Tender ({kode_pilih})",
             type="secondary",
             key=f"del_t_{kode_pilih}",
         ):
@@ -348,7 +371,7 @@ with tab3:
               f"🚨 URGENT: H+{selisih_hari} Selesai (Wajib Kirim Notifikasi)"
           )
         elif selisih_hari == 0:
-          return "⚠️️ Hari H Selesai Pemilihan"
+          return "⚠️ Hari H Selesai Pemilihan"
         else:
           return "📅 Jadwal Mendatang"
       except Exception:
