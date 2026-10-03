@@ -310,7 +310,7 @@ with tab2:
             " permanen?"
         )
         if st.button(
-            f"🗑️️ Hapus Paket Tender ({kode_pilih})",
+            f"🗑️ Hapus Paket Tender ({kode_pilih})",
             type="secondary",
             key=f"del_t_{kode_pilih}",
         ):
@@ -432,9 +432,14 @@ with tab3:
         "tanggal_tarik", pd.Series()
     ).fillna("-")
 
-    # Mengambil nilai kontrak secara akurat dari kolom 'pagu' di Supabase
-    raw_pagu = df_tender.get("pagu", pd.Series()).fillna(0.0)
+    # Membaca nilai kontrak dari kolom 'pagu' atau kolom alternatif secara aman
+    def get_nilai_kontrak_series(df):
+      for col in ["pagu", "nilai_kontrak", "nilai_pagu"]:
+        if col in df.columns:
+          return df[col].fillna(0.0)
+      return pd.Series([0.0] * len(df))
 
+    raw_pagu = get_nilai_kontrak_series(df_tender)
 
     def format_rupiah(val):
       try:
@@ -448,7 +453,6 @@ with tab3:
         )
       except Exception:
         return "Rp 0,00"
-
 
     df_tampil["nilai_kontrak"] = raw_pagu.apply(format_rupiah)
 
@@ -676,7 +680,7 @@ Admin SPSE Pemerintah Kota Kendari"""
                 st.error("Email PIC BPJS belum valid atau kosong!")
               else:
                 try:
-                  msg_pic = MIMEMultipay()
+                  msg_pic = MIMEMultipart()
                   msg_pic["From"] = smtp_email
                   msg_pic["To"] = email_pic
                   msg_pic["Subject"] = (
