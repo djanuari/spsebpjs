@@ -3,7 +3,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import smtplib
 import urllib.parse
-from api_connector import get_all_spse_data, upsert_spse_data
+from api_connector import get_all_spse_data, upsert_spse_data, supabase
 import pandas as pd
 import streamlit as st
 
@@ -94,9 +94,9 @@ with tab1:
           )
           st.rerun()
 
-# TAB 2: EDIT DATA
+# TAB 2: EDIT & HAPUS DATA
 with tab2:
-  st.subheader("Edit Data Berdasarkan Kode Non-Tender")
+  st.subheader("Edit atau Hapus Data Berdasarkan Kode Non-Tender")
   if not df_nontender.empty and "id_paket" in df_nontender.columns:
     df_nontender["label_edit"] = (
         df_nontender["id_paket"].astype(str)
@@ -104,7 +104,7 @@ with tab2:
         + df_nontender["nama_paket"].fillna("")
     )
     pilihan_edit = st.selectbox(
-        "Pilih Kode Non-Tender yang ingin diedit:",
+        "Pilih Kode Non-Tender yang ingin dikelola:",
         df_nontender["label_edit"].tolist(),
     )
 
@@ -114,7 +114,7 @@ with tab2:
 
       if not matched_row.empty:
         r = matched_row.iloc[0]
-        st.info(f"Sedang mengedit Kode Non-Tender: **{kode_pilih}**")
+        st.info(f"Sedang mengelola Kode Non-Tender: **{kode_pilih}**")
 
         with st.form(f"form_edit_nontender_{kode_pilih}"):
           u_nama = st.text_input(
@@ -170,6 +170,29 @@ with tab2:
                   " diperbarui di cloud!"
               )
               st.rerun()
+
+        # Tombol Hapus Data (Diletakkan di luar form agar aman)
+        st.markdown("---")
+        st.warning(
+            "⚠️ Ingin menghapus data paket ini dari database cloud secara"
+            " permanen?"
+        )
+        if st.button(
+            f"🗑️ Hapus Paket Non-Tender ({kode_pilih})",
+            type="secondary",
+            key=f"del_nt_{kode_pilih}",
+        ):
+          try:
+            supabase.table("tabel_spse_bpjs").delete().eq(
+                "id_paket", kode_pilih
+            ).execute()
+            st.success(
+                f"Data Non-Tender dengan kode {kode_pilih} berhasil dihapus dari"
+                " cloud!"
+            )
+            st.rerun()
+          except Exception as e:
+            st.error(f"Gagal menghapus data: {e}")
   else:
     st.info("Belum ada data Non-Tender tersimpan di cloud untuk diedit.")
 
@@ -287,7 +310,9 @@ Dinas Tenaga Kerja dan Perindustrian Kota Kendari"""
             st.text_area("Teks Email:", value=body_email_nt, height=120)
             st.text_area("Teks WA:", value=wa_text_nt, height=120)
 
-          if st.button("📧 Kirim Email Uji Coba ke Sistem", key="btn_send_nt"):
+          if st.button(
+              "📧 Kirim Email Uji Coba ke Sistem", key="btn_send_nt"
+          ):
             st.success("Simulasi pengiriman email berhasil diproses!")
   else:
     st.info("Belum ada data Non-Tender tersimpan di database cloud.")
