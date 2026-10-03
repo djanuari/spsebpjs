@@ -36,12 +36,12 @@ jenis_pengadaan_opsi = [
 
 tahapan_opsi = ["Pemilihan Berlangsung", "Pemilihan Selesai"]
 
-# TAB IMPORT EXCEL
+# TAB IMPORT EXCEL: Deteksi otomatis semua variasi nama kolom nominal di Excel
 with tab_import:
   st.subheader("📤 Unggah File Excel Rujukan Tender")
   st.info(
-      "Unggah file Excel Anda di sini. Sistem akan otomatis membaca kolom"
-      " nilai_kontrak dan menyimpannya ke database."
+      "Unggah file Excel Anda di sini. Sistem akan otomatis mendeteksi kolom"
+      " nominal (nilai kontrak / pagu / hps) dan menyimpannya ke database."
   )
 
   uploaded_excel = st.file_uploader(
@@ -52,8 +52,9 @@ with tab_import:
       df_import = pd.read_excel(uploaded_excel)
       st.write(
           f"Berhasil membaca file dengan {len(df_import)} baris data. Contoh"
-          " data teratas:"
+          " kolom yang tersedia di Excel Anda:"
       )
+      st.write(list(df_import.columns))
       st.dataframe(df_import.head(3), use_container_width=True)
 
       if st.button(
@@ -83,22 +84,50 @@ with tab_import:
                 f"[SK]:{satuan_kerja}|[JP]:{jenis_pengadaan}|[TP]:{tahapan_pengadaan}|[AL]:{alamat}"
             )
 
-            # AMBIL NILAI KONTRAK SECARA AMAN DARI EXCEL (Mendukung kolom nilai_kontrak ataupun pagu)
-            val_nilai_kontrak = 0.0
-            for col_n in ["nilai_kontrak", "pagu", "nilai_pagu"]:
+            # PENCARIAN NOMINAL SECARA FLEKSIBEL DARI BERBAGAI NAMA KOLOM EXCEL
+            val_pagu = 0.0
+            for col_n in [
+                "nilai_kontrak",
+                "pagu",
+                "nilai_pagu",
+                "hps",
+                "nilai_hps",
+                "total_pagu",
+                "nilai_pagu_hps",
+            ]:
               if col_n in row and pd.notna(row[col_n]):
-                try:
-                  val_nilai_kontrak = float(row[col_n])
-                  if val_nilai_kontrak > 0:
+                val_raw = row[col_n]
+                if isinstance(val_raw, (int, float)):
+                  val_pagu = float(val_raw)
+                  if val_pagu > 0:
                     break
-                except Exception:
-                  pass
+                else:
+                  # Jika berbentuk teks berformat rupiah/string
+                  try:
+                    clean_str = (
+                        str(val_raw)
+                        .replace("Rp", "")
+                        .replace(".", "")
+                        .replace(",", ".")
+                        .strip()
+                    )
+                    val_pagu = float(clean_str)
+                    if val_pagu > 0:
+                      break
+                  except Exception:
+                    pass
 
-            val_pemenang = str(
-                row.get("nama_pemenang", "")
-                or row.get("pemenang", "")
-                or "-"
-            )
+            val_pemenang = ""
+            for col_pem in [
+                "nama_pemenang",
+                "pemenang",
+                "penyedia",
+                "nama_penyedia",
+            ]:
+              if col_pem in row and pd.notna(row[col_pem]):
+                val_pemenang = str(row[col_pem]).strip()
+                if val_pemenang and val_pemenang.lower() != "nan":
+                  break
 
             data_row = {
                 "id_paket": kode.strip(),
@@ -109,9 +138,9 @@ with tab_import:
                     or ""
                 ),
                 "kategori": "Tender",
-                "pagu": val_nilai_kontrak,  # Disimpan ke database
+                "pagu": val_pagu,  # Kolom database penyimpan nominal
                 "hps": 0.0,
-                "pemenang": val_pemenang,
+                "pemenang": val_pemenang if val_pemenang else "-",
                 "status_kepatuhan": str(
                     row.get("status_kepatuhan", "Belum") or "Belum"
                 ),
