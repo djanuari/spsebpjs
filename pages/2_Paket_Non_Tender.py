@@ -36,14 +36,13 @@ jenis_pengadaan_opsi = [
 
 tahapan_opsi = ["Pemilihan Berlangsung", "Pemilihan Selesai"]
 
-# TAB IMPORT EXCEL: Sinkronisasi langsung persis seperti file rujukan Anda
+# TAB IMPORT EXCEL: Menyimpan data secara aman ke kolom database yang ada
 with tab_import:
   st.subheader("📤 Unggah File Excel Rujukan Non-Tender")
   st.info(
-      "Unggah file Excel Anda di sini. Sistem akan otomatis membaca seluruh"
-      " kolom (`jenis_pengadaan`, `satuan_kerja`, `tahapan_pengadaan`,"
-      " `nilai_kontrak`, dll) dan menyimpannya ke database agar sama persis"
-      " tanpa ada yang kosong (-)."
+      "Unggah file Excel Anda di sini. Sistem akan menyinkronkan seluruh kolom"
+      " ke database secara aman tanpa memerlukan perubahan struktur tabel di"
+      " Supabase."
   )
 
   uploaded_excel = st.file_uploader(
@@ -66,7 +65,16 @@ with tab_import:
             if not kode or kode.lower() == "nan":
               continue
 
-            # Petakan persis ke kolom database
+            satuan_kerja = str(row.get("satuan_kerja", "") or "")
+            jenis_pengadaan = str(row.get("jenis_pengadaan", "") or "")
+            tahapan_pengadaan = str(row.get("tahapan_pengadaan", "") or "")
+            alamat = str(row.get("Alamat", "") or "")
+
+            # Mengemas atribut lengkap ke dalam kolom keterangan agar aman dan terbaca sempurna
+            combined_ket = (
+                f"[SK]:{satuan_kerja}|[JP]:{jenis_pengadaan}|[TP]:{tahapan_pengadaan}|[AL]:{alamat}"
+            )
+
             data_row = {
                 "id_paket": kode.strip(),
                 "nama_paket": str(row.get("nama_nontender", "") or ""),
@@ -82,12 +90,7 @@ with tab_import:
                 ),
                 "email_pemenang": str(row.get("email", "") or ""),
                 "telp_pemenang": str(row.get("telepon", "") or ""),
-                "satuan_kerja": str(row.get("satuan_kerja", "") or ""),
-                "jenis_pengadaan": str(row.get("jenis_pengadaan", "") or ""),
-                "tahapan_pengadaan": str(
-                    row.get("tahapan_pengadaan", "") or ""
-                ),
-                "alamat": str(row.get("Alamat", "") or ""),
+                "keterangan": combined_ket,
             }
             if upsert_spse_data(data_row):
               success_count += 1
@@ -141,6 +144,9 @@ with tab1:
       if kode_nontender.strip() == "":
         st.error("kode_nontender wajib diisi sebagai pengenal unik!")
       else:
+        combined_ket = (
+            f"[SK]:{satuan_kerja}|[JP]:{jenis_pengadaan}|[TP]:{tahapan_pengadaan}|[AL]:{alamat}"
+        )
         data_baru = {
             "id_paket": kode_nontender.strip(),
             "nama_paket": nama_nontender,
@@ -152,10 +158,7 @@ with tab1:
             "tanggal_tarik": str(tanggal_selesai),
             "email_pemenang": email,
             "telp_pemenang": telepon,
-            "satuan_kerja": satuan_kerja,
-            "jenis_pengadaan": jenis_pengadaan,
-            "tahapan_pengadaan": tahapan_pengadaan,
-            "alamat": alamat,
+            "keterangan": combined_ket,
         }
         if upsert_spse_data(data_baru):
           st.success(
@@ -217,19 +220,8 @@ with tab2:
               "telepon", value=str(r.get("telp_pemenang", "") or "")
           )
 
-          u_satker = st.text_input(
-              "satuan_kerja", value=str(r.get("satuan_kerja", "") or "")
-          )
-          u_jenis = st.text_input(
-              "jenis_pengadaan",
-              value=str(r.get("jenis_pengadaan", "") or ""),
-          )
-          u_tahap = st.text_input(
-              "tahapan_pengadaan",
-              value=str(r.get("tahapan_pengadaan", "") or ""),
-          )
-          u_alamat = st.text_area(
-              "Alamat", value=str(r.get("alamat", "") or "")
+          u_ket = st.text_area(
+              "Keterangan / Atribut", value=str(r.get("keterangan", "") or "")
           )
 
           submit_update = st.form_submit_button(
@@ -248,10 +240,7 @@ with tab2:
                 "tanggal_tarik": str(r.get("tanggal_tarik", "")),
                 "email_pemenang": u_email,
                 "telp_pemenang": u_telp,
-                "satuan_kerja": u_satker,
-                "jenis_pengadaan": u_jenis,
-                "tahapan_pengadaan": u_tahap,
-                "alamat": u_alamat,
+                "keterangan": u_ket,
             }
             if upsert_spse_data(data_update):
               st.success(
@@ -345,24 +334,40 @@ with tab3:
       except Exception:
         return "🚨 Wajib Kirim Notifikasi (Belum Patuh)"
 
+    # Helper untuk mengekstrak data dari kolom keterangan
+    def extract_val(text, tag):
+      try:
+        if not text or pd.isna(text):
+          return "-"
+        text_str = str(text)
+        parts = text_str.split("|")
+        for p in parts:
+          if f"[{tag}]:" in p:
+            val = p.split(f"[{tag}]:")[1].strip()
+            return val if val and val != "None" else "-"
+        return text_str if text_str.lower() != "nan" else "-"
+      except Exception:
+        return "-"
+
     df_tampil = pd.DataFrame()
 
-    # Memetakan langsung dari kolom database Supabase secara bersih
     df_tampil["kode_nontender"] = df_nontender.get("id_paket", pd.Series()).fillna(
         "-"
     )
     df_tampil["nama_nontender"] = df_nontender.get(
         "nama_paket", pd.Series()
     ).fillna("-")
-    df_tampil["jenis_pengadaan"] = df_nontender.get(
-        "jenis_pengadaan", pd.Series()
-    ).fillna("-")
-    df_tampil["satuan_kerja"] = df_nontender.get(
-        "satuan_kerja", pd.Series()
-    ).fillna("-")
-    df_tampil["tahapan_pengadaan"] = df_nontender.get(
-        "tahapan_pengadaan", pd.Series()
-    ).fillna("-")
+
+    ket_series = df_nontender.get("keterangan", pd.Series())
+    df_tampil["jenis_pengadaan"] = ket_series.apply(
+        lambda x: extract_val(x, "JP")
+    )
+    df_tampil["satuan_kerja"] = ket_series.apply(lambda x: extract_val(x, "SK"))
+    df_tampil["tahapan_pengadaan"] = ket_series.apply(
+        lambda x: extract_val(x, "TP")
+    )
+    df_tampil["Alamat"] = ket_series.apply(lambda x: extract_val(x, "AL"))
+
     df_tampil["nama_pemenang"] = df_nontender.get(
         "pemenang", pd.Series()
     ).fillna("-")
@@ -372,7 +377,6 @@ with tab3:
     df_tampil["nilai_kontrak"] = df_nontender.get("pagu", pd.Series()).fillna(
         0.0
     )
-    df_tampil["Alamat"] = df_nontender.get("alamat", pd.Series()).fillna("-")
     df_tampil["email"] = df_nontender.get(
         "email_pemenang", pd.Series()
     ).fillna("-")
@@ -490,6 +494,7 @@ with tab3:
       pilihan_notif_nt = st.selectbox(
           "Pilih kode_nontender & nama_nontender:",
           list_opsi_nt,
+          key="nt_sel_notif",
       )
 
       if pilihan_notif_nt:
