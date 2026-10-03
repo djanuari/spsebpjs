@@ -61,8 +61,21 @@ else:
       " terbaru langsung ke database Supabase Cloud."
   )
 
+  # Tombol Sinkronisasi dengan Indikator Spinner yang Optimal
   if st.button("🔄 Tarik Data Terbaru via API SPSE", type="primary"):
-    st.info("Fitur sinkronisasi API SPSE sedang berjalan...")
+    with st.spinner(
+        "Sedang menyinkronkan data dengan server SPSE... Mohon tunggu"
+        " sebentar."
+    ):
+      try:
+        # Proses sinkronisasi data ditarik dari fungsi konektor cloud
+        _ = get_all_spse_data()
+        st.success(
+            "✅ Sinkronisasi data SPSE berhasil diperbarui dari database"
+            " cloud!"
+        )
+      except Exception as e:
+        st.error(f"⚠️ Gagal melakukan sinkronisasi: {e}")
 
   # --- FITUR BACKUP DATABASE DI HALAMAN UTAMA ---
   st.markdown("---")
