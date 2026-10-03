@@ -1,4 +1,4 @@
-import sqlite3
+from api_connector import upsert_spse_data
 import pandas as pd
 import streamlit as st
 
@@ -10,33 +10,10 @@ st.set_page_config(
     page_title="Impor Data E-Purchasing", page_icon="📥", layout="wide"
 )
 
-# Koneksi Database SQLite
-conn = sqlite3.connect("database_spse.db", check_same_thread=False)
-cursor = conn.cursor()
-
-# Pastikan tabel e-purchasing tersedia
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS tabel_epurchasing (
-    kode_paket TEXT PRIMARY KEY,
-    kode_rup TEXT,
-    nama_paket TEXT,
-    pagu_paket REAL,
-    hps_paket REAL,
-    jenis_pengadaan TEXT,
-    nama_pemenang TEXT,
-    nilai_kontrak REAL,
-    alamat_pemenang TEXT,
-    email_pemenang TEXT,
-    telp_pemenang TEXT,
-    status_bpjs TEXT
-)
-""")
-conn.commit()
-
 st.title("📥 Impor Data Khusus E-Purchasing / Mini Kompetisi")
 st.write(
     "Unggah file rekapitulasi data E-Purchasing (format `.xlsx`, `.xls`, atau"
-    " `.csv`) sesuai dengan 11 kolom struktur yang ditentukan."
+    " `.csv`) agar tersimpan secara aman ke database cloud Supabase."
 )
 st.markdown("---")
 
@@ -47,13 +24,12 @@ uploaded_file = st.file_uploader(
 
 if uploaded_file is not None:
   try:
-    # Baca file berdasarkan ekstensinya
     if uploaded_file.name.endswith(".csv"):
       df_import = pd.read_csv(uploaded_file)
     else:
       df_import = pd.read_excel(uploaded_file)
 
-    # Normalisasi nama kolom (ubah ke huruf kecil & spasi jadi underscore agar seragam)
+    # Normalisasi nama kolom
     df_import.columns = [
         str(c).strip().lower().replace(" ", "_") for c in df_import.columns
     ]
@@ -64,21 +40,45 @@ if uploaded_file is not None:
 
     st.markdown("---")
 
-    # Tombol konfirmasi simpan ke database
-    if st.button("🚀 Proses & Simpan ke Database E-Purchasing", type="primary"):
-      with st.spinner("Sedang menyimpan data..."):
+    if st.button("🚀 Proses & Simpan ke Cloud Database", type="primary"):
+      with st.spinner("Sedang memproses dan mengunggah data ke cloud..."):
         try:
-          df_import.to_sql(
-              "tabel_epurchasing", conn, if_exists="append", index=False
-          )
+          sukses_count = 0
+          for _, row in df_import.iterrows():
+            id_val = row.get("kode_paket") or row.get("kode_rup")
+            if pd.notna(id_val):
+              data_dict = {
+                  "id_paket": str(id_val),
+                  "nama_paket": str(row.get("nama_paket", "")),
+                  "kategori": "E-Purchasing",
+                  "pagu": float(
+                      row.get("pagu_paket") or row.get("pagu") or 0
+                  ),
+                  "hps": float(row.get("hps_paket") or row.get("hps") or 0),
+                  "pemenang": str(
+                      row.get("nama_pemenang") or row.get("nama_penyedia") or ""
+                  ),
+                  "status_kepatuhan": str(
+                      row.get("status_bpjs")
+                      or row.get("status_kepatuhan")
+                      or "Belum"
+                  ),
+                  "tanggal_tarik": str(row.get("tanggal_penetapan", "")),
+                  "keterangan": str(
+                      row.get("jenis_pengadaan")
+                      or f"Kontrak: Rp {float(row.get('nilai_kontrak', 0) or 0):,.2f}"
+                  ),
+              }
+              if upsert_spse_data(data_dict):
+                sukses_count += 1
+
           st.success(
-              "🎉 Berhasil! Seluruh data E-Purchasing telah diimpor ke"
-              " database."
+              f"🎉 Berhasil! Sebanyak **{sukses_count} data E-Purchasing** telah"
+              " disimpan ke database cloud Supabase."
           )
         except Exception as db_err:
           st.error(
-              f"Gagal menyimpan ke database. Pastikan 'kode_paket' unik dan belum"
-              f" pernah diimpor sebelumnya. Detail error: {db_err}"
+              f"Gagal menyimpan ke cloud database. Detail error: {db_err}"
           )
 
   except Exception as e:
@@ -94,7 +94,7 @@ else:
         4. **`pagu_paket`**
         5. **`hps_paket`**
         6. **`jenis_pengadaan`**
-        7. **`nama_pemenang`**
+        7. **`nama_pemenang`** / **`nama_penyedia`**
         8. **`nilai_kontrak`**
         9. **`alamat_pemenang`**
         10. **`email_pemenang`**
