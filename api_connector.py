@@ -1,10 +1,12 @@
 import math
+from supabase import Client, create_client
+import pandas as pd
 import requests
-from supabase import create_client, Client
 import streamlit as st
 
 API_TOKEN = "inprc8b6ed516eb3c425c89596b3b42b2d056"
 
+# Inisialisasi Koneksi Supabase dari st.secrets
 SUPABASE_URL = st.secrets["supabase"]["url"]
 SUPABASE_KEY = st.secrets["supabase"]["key"]
 
@@ -23,7 +25,7 @@ def clean_value(val):
     return None
   if isinstance(val, float):
     if math.isnan(val) or math.isinf(val):
-      return 0.0  # Ubah NaN/inf menjadi 0 atau string kosong
+      return 0.0
   return val
 
 
@@ -38,9 +40,8 @@ def get_all_spse_data():
 
 
 def upsert_spse_data(data_dict):
-  """Menyimpan atau memperbarui data ke cloud dengan membersihkan nilai NaN"""
+  """Menyimpan atau memperbarui data berdasarkan id_paket ke cloud"""
   try:
-    # Bersihkan setiap nilai dari potensi NaN / float ilegal
     cleaned_dict = {
         k: (
             clean_value(v)
@@ -57,3 +58,53 @@ def upsert_spse_data(data_dict):
   except Exception as e:
     st.error(f"Gagal menyimpan data ke cloud: {e}")
     return False
+
+
+def sinkronisasi_database_spse():
+  """Fungsi sinkronisasi data (Mode Simulasi / API Asli) ke Supabase Cloud"""
+  total_keseluruhan = 0
+
+  url_tender = ""
+  url_nontender = ""
+
+  if not url_tender and not url_nontender:
+    st.info(
+        "ℹ️ Mode Simulasi Aktif: Memasukkan data tiruan ke Supabase Cloud."
+    )
+
+    try:
+      data_dummy = [
+          {
+              "id_paket": "TND-2026-001",
+              "nama_paket": "Pembangunan Gedung Kantor Walikota Tahap II",
+              "kategori": "Tender",
+              "pagu": 2500000000,
+              "hps": 2400000000,
+              "pemenang": "PT Sultra Konstruksi Utama",
+              "status_kepatuhan": "Sudah",
+              "tanggal_tarik": "2026-06-01",
+              "keterangan": "Satuan Kerja: Setda Kota Kendari",
+          },
+          {
+              "id_paket": "NTND-2026-001",
+              "nama_paket": "Pengadaan ATK Kantor Dinas Kesehatan",
+              "kategori": "Non-Tender",
+              "pagu": 75000000,
+              "hps": 72000000,
+              "pemenang": "CV Cahaya Abadi",
+              "status_kepatuhan": "Sudah",
+              "tanggal_tarik": "2026-06-02",
+              "keterangan": "Satuan Kerja: Dinas Kesehatan Kota Kendari",
+          },
+      ]
+
+      for item in data_dummy:
+        if upsert_spse_data(item):
+          total_keseluruhan += 1
+
+      return total_keseluruhan
+    except Exception as db_err:
+      st.error(f"Gagal menyimpan data simulasi: {db_err}")
+      return 0
+
+  return total_keseluruhan
