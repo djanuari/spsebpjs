@@ -1,5 +1,4 @@
-import sqlite3
-from datetime import datetime
+from api_connector import get_all_spse_data
 import pandas as pd
 import plotly.express as px
 import streamlit as st
@@ -12,26 +11,20 @@ st.set_page_config(
     page_title="Grafik & Statistik Kepatuhan BPJS", page_icon="📊", layout="wide"
 )
 
-# Koneksi Database SQLite
-conn = sqlite3.connect("database_spse.db", check_same_thread=False)
-
 st.title("📊 Dashboard Grafik & Statistik Kepatuhan BPJS")
 st.markdown("---")
 
-# Memuat data dari masing-masing tabel dengan penanganan aman
-try:
-  df_tender = pd.read_sql_query("SELECT * FROM tabel_tender", conn)
-except Exception:
+# Memuat seluruh data dari Supabase Cloud
+df_all = get_all_spse_data()
+
+# Memisahkan data berdasarkan kategori
+if not df_all.empty and "kategori" in df_all.columns:
+  df_tender = df_all[df_all["kategori"].str.lower() == "tender"]
+  df_nontender = df_all[df_all["kategori"].str.lower() == "non-tender"]
+  df_ep = df_all[df_all["kategori"].str.lower() == "e-purchasing"]
+else:
   df_tender = pd.DataFrame()
-
-try:
-  df_nontender = pd.read_sql_query("SELECT * FROM tabel_nontender", conn)
-except Exception:
   df_nontender = pd.DataFrame()
-
-try:
-  df_ep = pd.read_sql_query("SELECT * FROM tabel_epurchasing", conn)
-except Exception:
   df_ep = pd.DataFrame()
 
 # Layout Statistik Ringkas (Metrics)
@@ -47,111 +40,59 @@ col3.metric("🛒 Total Paket E-Purchasing", f"{total_ep} Paket")
 
 st.markdown("---")
 
-# BAGIAN 1: GRAFIK PIE STATUS KEPATUHAN BPJS (Tender, Non-Tender, & E-Purchasing)
+# BAGIAN 1: GRAFIK PIE STATUS KEPATUHAN BPJS
 st.subheader("📈 Distribusi Status Kepatuhan BPJS per Kategori Paket")
 c_g1, c_g2, c_g3 = st.columns(3)
 
-with c_g1:
-  st.markdown("**Tender / Seleksi**")
-  if not df_tender.empty and "status_bpjs" in df_tender.columns:
-    count_tender = df_tender["status_bpjs"].value_counts().reset_index()
-    count_tender.columns = ["Status", "Jumlah"]
-    fig_tender = px.pie(
-        count_tender,
+
+def render_pie_chart(df_sub, title_text, key_name):
+  st.markdown(f"**{title_text}**")
+  if not df_sub.empty and "status_kepatuhan" in df_sub.columns:
+    count_data = df_sub["status_kepatuhan"].value_counts().reset_index()
+    count_data.columns = ["Status", "Jumlah"]
+    fig = px.pie(
+        count_data,
         names="Status",
         values="Jumlah",
         hole=0.4,
         color_discrete_sequence=["#FF4B4B", "#00CC96"],
     )
-    fig_tender.update_layout(
-        margin=dict(t=10, b=10, l=10, r=10), showlegend=True
-    )
-    st.plotly_chart(fig_tender, use_container_width=True, key="grafik_pie_tender")
+    fig.update_layout(margin=dict(t=10, b=10, l=10, r=10), showlegend=True)
+    st.plotly_chart(fig, use_container_width=True, key=key_name)
   else:
     st.info("Belum ada data.")
+
+
+with c_g1:
+  render_pie_chart(df_tender, "Tender / Seleksi", "grafik_pie_tender")
 
 with c_g2:
-  st.markdown("**Non-Tender**")
-  if not df_nontender.empty and "status_bpjs" in df_nontender.columns:
-    count_nt = df_nontender["status_bpjs"].value_counts().reset_index()
-    count_nt.columns = ["Status", "Jumlah"]
-    fig_nt = px.pie(
-        count_nt,
-        names="Status",
-        values="Jumlah",
-        hole=0.4,
-        color_discrete_sequence=["#FF4B4B", "#00CC96"],
-    )
-    fig_nt.update_layout(
-        margin=dict(t=10, b=10, l=10, r=10), showlegend=True
-    )
-    st.plotly_chart(
-        fig_nt, use_container_width=True, key="grafik_pie_nontender"
-    )
-  else:
-    st.info("Belum ada data.")
+  render_pie_chart(df_nontender, "Non-Tender", "grafik_pie_nontender")
 
 with c_g3:
-  st.markdown("**E-Purchasing / Mini Kompetisi**")
-  if not df_ep.empty and "status_bpjs" in df_ep.columns:
-    count_ep = df_ep["status_bpjs"].value_counts().reset_index()
-    count_ep.columns = ["Status", "Jumlah"]
-    fig_ep = px.pie(
-        count_ep,
-        names="Status",
-        values="Jumlah",
-        hole=0.4,
-        color_discrete_sequence=["#FF4B4B", "#00CC96"],
-    )
-    fig_ep.update_layout(
-        margin=dict(t=10, b=10, l=10, r=10), showlegend=True
-    )
-    st.plotly_chart(
-        fig_ep, use_container_width=True, key="grafik_pie_epurchasing"
-    )
-  else:
-    st.info("Belum ada data.")
+  render_pie_chart(df_ep, "E-Purchasing / Mini Kompetisi", "grafik_pie_epurchasing")
 
 st.markdown("---")
 
-# BAGIAN 2: GRAFIK BATANG BERDASARKAN JENIS PENGADAAN
-st.subheader("📊 Perbandingan Volume Berdasarkan Jenis Pengadaan")
+# BAGIAN 2: GRAFIK BATANG BERDASARKAN KETERANGAN / JENIS
+st.subheader("📊 Perbandingan Volume Paket Berdasarkan Kategori & Keterangan")
 
 try:
-  list_gabungan = []
-  if not df_tender.empty and "jenis_pengadaan" in df_tender.columns:
-    t_sub = df_tender[["jenis_pengadaan"]].copy()
-    t_sub["Kategori"] = "Tender"
-    list_gabungan.append(t_sub)
-
-  if not df_nontender.empty and "jenis_pengadaan" in df_nontender.columns:
-    nt_sub = df_nontender[["jenis_pengadaan"]].copy()
-    nt_sub["Kategori"] = "Non-Tender"
-    list_gabungan.append(nt_sub)
-
-  if not df_ep.empty and "jenis_pengadaan" in df_ep.columns:
-    ep_sub = df_ep[["jenis_pengadaan"]].copy()
-    ep_sub["Kategori"] = "E-Purchasing"
-    list_gabungan.append(ep_sub)
-
-  if len(list_gabungan) > 0:
-    df_all = pd.concat(list_gabungan, ignore_index=True)
+  if not df_all.empty:
     fig_bar = px.histogram(
         df_all,
-        x="jenis_pengadaan",
-        color="Kategori",
+        x="kategori",
+        color="status_kepatuhan",
         barmode="group",
-        title="Jumlah Paket per Jenis Pengadaan",
-        labels={
-            "jenis_pengadaan": "Jenis Pengadaan",
-            "count": "Jumlah Paket",
-        },
+        title="Distribusi Status Kepatuhan Berdasarkan Kategori Paket",
+        labels={"kategori": "Kategori Paket", "count": "Jumlah Paket"},
+        color_discrete_sequence=["#FF4B4B", "#00CC96"],
     )
-    fig_bar.update_layout(xaxis_tickangle=-15)
+    fig_bar.update_layout(xaxis_tickangle=0)
     st.plotly_chart(
-        fig_bar, use_container_width=True, key="grafik_histogram_pengadaan"
+        fig_bar, use_container_width=True, key="grafik_histogram_kepatuhan"
     )
   else:
-    st.info("Data jenis pengadaan belum mencukupi untuk ditampilkan dalam grafik.")
+    st.info("Data belum mencukupi untuk ditampilkan dalam grafik.")
 except Exception as e:
   st.warning(f"Gagal memuat grafik statistik gabungan: {e}")
