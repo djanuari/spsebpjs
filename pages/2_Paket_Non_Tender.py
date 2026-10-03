@@ -1,4 +1,7 @@
 from datetime import datetime
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+import urllib.parse
 from api_connector import get_all_spse_data, supabase, upsert_spse_data
 import pandas as pd
 import streamlit as st
@@ -68,7 +71,6 @@ with tab1:
       if kode_nontender.strip() == "":
         st.error("Kode Non-Tender wajib diisi!")
       else:
-        # Pemetaan data ke kolom Supabase tanpa mengubah struktur database asli
         data_baru = {
             "id_paket": kode_nontender.strip(),
             "nama_paket": nama_nontender,
@@ -179,8 +181,12 @@ with tab2:
               )
               st.rerun()
 
-        # Tombol Hapus Data Satuan
+        # Sistem Penghapusan Paket dari Database Supabase
         st.markdown("---")
+        st.warning(
+            "⚠️ Ingin menghapus data paket ini dari database cloud secara"
+            " permanen?"
+        )
         if st.button(
             f"🗑️ Hapus Paket Non-Tender ({kode_pilih})",
             type="secondary",
@@ -274,5 +280,111 @@ with tab3:
         mime="text/csv",
         type="primary",
     )
+
+    st.markdown("---")
+    st.subheader(
+        "📨 Pusat Pengiriman Notifikasi (Email & WhatsApp) - Non-Tender"
+    )
+
+    with st.expander(
+        "⚙️ Konfigurasi & Kirim Pesan Otomatis ke Pemenang", expanded=True
+    ):
+      col_smtp1, col_smtp2 = st.columns(2)
+      smtp_email = col_smtp1.text_input(
+          "Email Instansi / Pengirim",
+          value="admin.spse@kendarikota.go.id",
+          key="nt_smtp_email",
+      )
+      smtp_pass = col_smtp2.text_input(
+          "Password / App Password Email", type="password", key="nt_smtp_pass"
+      )
+
+      list_opsi_nt = (
+          df_nontender["id_paket"].astype(str)
+          + " - "
+          + df_nontender["nama_paket"].fillna("")
+      ).tolist()
+      pilihan_notif_nt = st.selectbox(
+          "Pilih Kode & Nama Paket Non-Tender:", list_opsi_nt, key="nt_sel_notif"
+      )
+
+      if pilihan_notif_nt:
+        kode_pilih_nt = pilihan_notif_nt.split(" - ")[0]
+        matched_rows_nt = df_nontender[
+            df_nontender["id_paket"].astype(str) == kode_pilih_nt
+        ]
+
+        if not matched_rows_nt.empty:
+          row_n = matched_rows_nt.iloc[0]
+          pemenang = row_n.get("pemenang", "Pemenang") or "Pemenang"
+          email_tujuan = (
+              row_n.get("email_pemenang", "")
+              or "Belum ada email terdaftar"
+          )
+          telp_tujuan = (
+              row_n.get("telp_pemenang", "") or "Belum ada nomor WA terdaftar"
+          )
+
+          st.info(
+              f"📌 **Kontak Pemenang Terdeteksi dari Database:**\n- Email:"
+              f" `{email_tujuan}`\n- No. WhatsApp: `{telp_tujuan}`"
+          )
+
+          body_email_nt = f"""Kepada Yth. Pimpinan {pemenang},
+
+Sehubungan dengan penetapan pemenang untuk paket Non-Tender {row_n.get('nama_paket', '')} (Kode: {kode_pilih_nt}), sesuai dengan Peraturan Walikota Kendari dan MoU antara Pemerintah Kota Kendari, Kejaksaan Negeri Kendari dan BPJS, diharapkan agar Saudara segera menunaikan kewajiban Saudara terkait BPJS Ketenagakerjaan.
+
+Hormat kami,
+Dinas Tenaga Kerja dan Perindustrian Kota Kendari"""
+
+          wa_text_nt = f"Halo {pemenang},\n\nSehubungan dengan penetapan pemenang untuk paket Non-Tender {row_n.get('nama_paket', '')} (Kode: {kode_pilih_nt}), sesuai dengan Peraturan Walikota Kendari dan MoU antara Pemerintah Kota Kendari, Kejaksaan Negeri Kendari dan BPJS, diharapkan agar Saudara segera menunaikan kewajiban Saudara terkait BPJS Ketenagakerjaan.\n\nHormat kami,\nDinas Tenaga Kerja dan Perindustrian Kota Kendari"
+
+          with st.expander("📄 Pratinjau Pesan Email & WhatsApp"):
+            st.text_area("Teks Email:", value=body_email_nt, height=120)
+            st.text_area("Teks WA:", value=wa_text_nt, height=120)
+
+          col_btn1, col_btn2 = st.columns(2)
+
+          with col_btn1:
+            if st.button("📧 Kirim Email ke Pemenang", key="btn_send_email_nt"):
+              if not email_tujuan or "@" not in email_tujuan:
+                st.error("Email pemenang belum valid atau kosong!")
+              else:
+                try:
+                  msg = MIMEMultipart()
+                  msg["From"] = smtp_email
+                  msg["To"] = email_tujuan
+                  msg["Subject"] = (
+                      f"Pemberitahuan Kepatuhan BPJS - Paket {kode_pilih_nt}"
+                  )
+                  msg.attach(MIMEText(body_email_nt, "plain"))
+
+                  server = smtplib.SMTP("smtp.gmail.com", 587)
+                  server.starttls()
+                  server.login(smtp_email, smtp_pass)
+                  server.sendmail(smtp_email, email_tujuan, msg.as_string())
+                  server.quit()
+                  st.success(
+                      f"Email berhasil dikirim ke {email_tujuan}!"
+                  )
+                except Exception as e:
+                  st.error(
+                      f"Gagal mengirim email (pastikan App Password benar): {e}"
+                  )
+
+          with col_btn2:
+            if telp_tujuan and telp_tujuan != "Belum ada nomor WA terdaftar":
+              encoded_wa = urllib.parse.quote(wa_text_nt)
+              wa_url = f"https://wa.me/{telp_tujuan}?text={encoded_wa}"
+              st.markdown(
+                  f'<a href="{wa_url}" target="_blank"><button'
+                  ' style="background-color:#25D366; color:white; border:none;'
+                  " padding:10px 20px; border-radius:5px; cursor:pointer; width:"
+                  '100%; font-weight:bold;">💬 Kirim Pesan via'
+                  " WhatsApp</button></a>",
+                  unsafe_allow_html=True,
+              )
+            else:
+              st.warning("Nomor WhatsApp belum tersedia untuk paket ini.")
   else:
     st.info("Belum ada data Non-Tender tersimpan di database cloud.")
