@@ -40,9 +40,8 @@ tahapan_opsi = ["Pemilihan Berlangsung", "Pemilihan Selesai"]
 with tab_import:
   st.subheader("📤 Unggah File Excel Rujukan Tender")
   st.info(
-      "Unggah file Excel Anda di sini. Sistem akan otomatis membaca seluruh"
-      " kolom (`jenis_pengadaan`, `satuan_kerja`, `tahapan_pengadaan`,"
-      " `nilai_kontrak`, dll) dan menyimpannya ke database."
+      "Unggah file Excel Anda di sini. Sistem akan otomatis menyinkronkan"
+      " seluruh kolom termasuk nilai_kontrak ke database."
   )
 
   uploaded_excel = st.file_uploader(
@@ -63,7 +62,7 @@ with tab_import:
           type="primary",
       ):
         success_count = 0
-        with st.spinner("Sedang menyinkronkan data ke Supabase..."):
+        with st.spinner("Sedang menyinkronkan data Tender ke Supabase..."):
           for _, row in df_import.iterrows():
             kode = str(
                 row.get("kode_tender", "")
@@ -84,6 +83,29 @@ with tab_import:
                 f"[SK]:{satuan_kerja}|[JP]:{jenis_pengadaan}|[TP]:{tahapan_pengadaan}|[AL]:{alamat}"
             )
 
+            # Mengambil nilai kontrak langsung dari kolom nilai_kontrak atau pagu di file Excel
+            val_nilai_kontrak = 0.0
+            for col_n in ["nilai_kontrak", "pagu", "nilai_pagu"]:
+              if col_n in row and pd.notna(row[col_n]):
+                try:
+                  val_nilai_kontrak = float(row[col_n])
+                  if val_nilai_kontrak > 0:
+                    break
+                except Exception:
+                  pass
+
+            val_pemenang = ""
+            for col_pem in [
+                "nama_pemenang",
+                "pemenang",
+                "penyedia",
+                "nama_penyedia",
+            ]:
+              if col_pem in row and pd.notna(row[col_pem]):
+                val_pemenang = str(row[col_pem]).strip()
+                if val_pemenang and val_pemenang.lower() != "nan":
+                  break
+
             data_row = {
                 "id_paket": kode.strip(),
                 "nama_paket": str(
@@ -93,13 +115,9 @@ with tab_import:
                     or ""
                 ),
                 "kategori": "Tender",
-                "pagu": float(row.get("nilai_kontrak", 0.0) or 0.0),
+                "pagu": val_nilai_kontrak,  # Disimpan ke kolom pagu di database
                 "hps": 0.0,
-                "pemenang": str(
-                    row.get("nama_pemenang", "")
-                    or row.get("pemenang", "")
-                    or ""
-                ),
+                "pemenang": val_pemenang,
                 "status_kepatuhan": str(
                     row.get("status_kepatuhan", "Belum") or "Belum"
                 ),
@@ -308,7 +326,7 @@ with tab2:
           " cloud secara permanen dan tidak dapat dikembalikan."
       )
       konfirmasi_hapus_semua = st.checkbox(
-          "Saya yakin ingin menghapus seluruh data Tender",
+          "I yakin ingin menghapus seluruh data Tender",
           key="chk_hapus_semua_t",
       )
       if st.button(
@@ -404,7 +422,7 @@ with tab3:
         "tanggal_tarik", pd.Series()
     ).fillna("-")
 
-    # Mengambil nilai kontrak persis seperti tab Non-Tender
+    # Format rupiah persis seperti tab Non-Tender menggunakan data dari kolom 'pagu'
     raw_pagu = df_tender.get("pagu", pd.Series()).fillna(0.0)
 
     def format_rupiah(val):
