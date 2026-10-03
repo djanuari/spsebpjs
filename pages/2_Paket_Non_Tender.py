@@ -29,7 +29,7 @@ jenis_pengadaan_opsi = [
     "Pengadaan Barang",
 ]
 
-tahapan_opsi = ["Paket Sedang Berlangsung", "Paket Selesai"]
+tahapan_opsi = ["Pemilihan Berlangsung", "Pemilihan Selesai"]
 
 # Ambil data dari Supabase Cloud dan filter kategori Non-Tender
 df_all = get_all_spse_data()
@@ -59,9 +59,7 @@ with tab1:
         "8. Nilai Kontrak (Rp)", min_value=0.0, format="%.2f"
     )
 
-    status_bpjs = c4.selectbox(
-        "9. Status Kepatuhan BPJS", ["Belum", "Sudah"]
-    )  # Diperbaiki di kolom c4 atau buat kolom sendiri jika perlu
+    status_bpjs = c4.selectbox("9. Status Kepatuhan BPJS", ["Belum", "Sudah"])
     alamat = st.text_area("10. Alamat")
 
     c7, c8 = st.columns(2)
@@ -274,10 +272,10 @@ with tab3:
     )
 
     # --- PENGURUTAN (SORTING) SESUAI PERMINTAAN ---
-    # 1. Tahapan Pengadaan: "Paket Sedang Berlangsung" di posisi atas
+    # 1. Tahapan Pengadaan: "Pemilihan Berlangsung" di posisi atas
     # 2. Status Kepatuhan: "Belum" di posisi atas
     df_tampil["_sort_tahapan"] = df_tampil["tahapan_pengadaan"].apply(
-        lambda x: 0 if "Sedang Berlangsung" in str(x) else 1
+        lambda x: 0 if "Pemilihan Berlangsung" in str(x) else 1
     )
     df_tampil["_sort_status"] = df_tampil["status_kepatuhan"].apply(
         lambda x: 0 if str(x).lower() == "belum" else 1
@@ -344,7 +342,7 @@ with tab3:
     )
 
     with st.expander(
-        "⚙️️ Konfigurasi & Kirim Pesan Otomatis (Pemenang & PIC BPJS)",
+        "⚙️ Konfigurasi & Kirim Pesan Otomatis (Pemenang & PIC BPJS)",
         expanded=True,
     ):
       col_smtp1, col_smtp2 = st.columns(2)
